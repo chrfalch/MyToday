@@ -122,6 +122,31 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             }
         }
 
+        // If in a current event, show the next upcoming event (≤30 min) dimmed after it
+        let now = Date()
+        if let current = eventManager.nextEvent, current.startDate <= now, current.endDate > now {
+            if let nextItem = eventManager.sortedEvents.first(where: { $0.event.startDate > now }) {
+                let mins = Int(nextItem.event.startDate.timeIntervalSince(now) / 60)
+                if mins <= 30 {
+                    let icon = nextItem.event.eventType.emoji
+                    var nextTitle = nextItem.event.title ?? "Event"
+                    if nextTitle.count > 14 { nextTitle = String(nextTitle.prefix(14)) + "…" }
+                    let dimColor = NSColor.secondaryLabelColor
+                    let nextStr = NSMutableAttributedString(
+                        string: "  \(icon) \(nextTitle) in \(mins)m",
+                        attributes: [.font: baseFont, .foregroundColor: dimColor]
+                    )
+                    // Apply +2pt offset to the icon emoji (starts at index 2, after the two spaces)
+                    let nsNext = nextStr.string as NSString
+                    let iconRange = nsNext.rangeOfComposedCharacterSequence(at: 2)
+                    if let scalar = nextStr.string.unicodeScalars.dropFirst(2).first, scalar.value != 0x1F7E2 {
+                        nextStr.addAttribute(.baselineOffset, value: 2.0, range: iconRange)
+                    }
+                    result.append(nextStr)
+                }
+            }
+        }
+
         let dotFont = NSFont.systemFont(ofSize: 8)
         let dotBaseline = (baseFont.pointSize - dotFont.pointSize) / 2 - 1
         let countFont = NSFont.monospacedDigitSystemFont(ofSize: baseFont.pointSize, weight: .medium)
