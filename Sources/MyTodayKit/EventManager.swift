@@ -34,6 +34,16 @@ extension EKEvent {
     }
 }
 
+public struct EventWithGroup {
+    public var event: EKEvent
+    public var groupName: String?
+
+    public init(event: EKEvent, groupName: String?) {
+        self.event = event
+        self.groupName = groupName
+    }
+}
+
 public struct GroupedEvents: Identifiable {
     public var id: UUID?
     public var groupName: String
@@ -70,6 +80,7 @@ public class EventManager: ObservableObject {
     @Published public var todaysEvents: [EKEvent] = []
     @Published public var pastTaskEvents: [EKEvent] = []
     @Published public var groupedEvents: [GroupedEvents] = []
+    @Published public var sortedEvents: [EventWithGroup] = []
     @Published public var nextEvent: EKEvent? = nil
     @Published public private(set) var overdueReminders: Int = 0
     @Published public private(set) var undatedReminders: Int = 0
@@ -176,6 +187,7 @@ public class EventManager: ObservableObject {
     private func buildGroupedEvents(from events: [EKEvent]) {
         guard let settings = settingsManager else {
             groupedEvents = [GroupedEvents(id: nil, groupName: "Today", events: events)]
+            sortedEvents = events.map { EventWithGroup(event: $0, groupName: nil) }
             return
         }
 
@@ -201,6 +213,13 @@ public class EventManager: ObservableObject {
         }
 
         groupedEvents = result
+
+        let showGroupName = result.count > 1 || (result.count == 1 && result.first?.groupName != "Today")
+        sortedEvents = result
+            .flatMap { group in
+                group.events.map { EventWithGroup(event: $0, groupName: showGroupName ? group.groupName : nil) }
+            }
+            .sorted { $0.event.startDate < $1.event.startDate }
     }
 
     func fetchReminders() {
