@@ -42,7 +42,7 @@ public struct PopoverContentView: View {
                         RemindersSectionView(
                             overdue: eventManager.overdueReminders,
                             undated: eventManager.undatedReminders,
-                            listSummaries: eventManager.reminderListSummaries
+                            reminderItems: eventManager.reminderItems
                         )
                         Divider().padding(.leading, 16)
                     }
@@ -119,7 +119,7 @@ public struct PopoverContentView: View {
 struct RemindersSectionView: View {
     let overdue: Int
     let undated: Int
-    let listSummaries: [ReminderListSummary]
+    let reminderItems: [EKReminder]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -159,54 +159,62 @@ struct RemindersSectionView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
 
-            // Per-list breakdown
-            ForEach(listSummaries) { summary in
-                ReminderListRow(summary: summary)
+            ForEach(reminderItems, id: \.calendarItemIdentifier) { reminder in
+                ReminderItemRow(reminder: reminder)
             }
 
-            if !listSummaries.isEmpty {
+            if !reminderItems.isEmpty {
                 Spacer().frame(height: 6)
             }
         }
     }
 }
 
-struct ReminderListRow: View {
-    let summary: ReminderListSummary
+struct ReminderItemRow: View {
+    let reminder: EKReminder
     @State private var isHovered = false
 
-    var body: some View {
-        HStack(spacing: 8) {
-            Circle()
-                .fill(Color(cgColor: summary.color))
-                .frame(width: 8, height: 8)
+    private var dueDate: Date? {
+        reminder.dueDateComponents.flatMap { Calendar.current.date(from: $0) }
+    }
 
-            Text(summary.listName)
-                .font(.caption)
-                .foregroundColor(.primary)
-                .lineLimit(1)
+    private var isOverdue: Bool {
+        dueDate.map { $0 < Date() } ?? false
+    }
+
+    private var listColor: Color {
+        guard let cg = reminder.calendar.cgColor else { return .secondary }
+        return Color(cgColor: cg)
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Circle()
+                .fill(listColor)
+                .frame(width: 8, height: 8)
+                .padding(.top, 4)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(reminder.title ?? "Untitled")
+                    .font(.caption)
+                    .foregroundColor(isOverdue ? .red : .primary)
+                    .lineLimit(2)
+
+                if let due = dueDate {
+                    Text(due, style: .relative)
+                        .font(.caption2)
+                        .foregroundColor(.red)
+                } else {
+                    Text(reminder.calendar.title)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+            }
 
             Spacer()
-
-            if summary.overdueCount > 0 {
-                HStack(spacing: 3) {
-                    Circle().fill(Color.red).frame(width: 6, height: 6)
-                    Text("\(summary.overdueCount)")
-                        .font(.caption)
-                        .foregroundColor(.red)
-                }
-            }
-            if summary.undatedCount > 0 {
-                HStack(spacing: 3) {
-                    Circle().fill(Color.orange).frame(width: 6, height: 6)
-                    Text("\(summary.undatedCount)")
-                        .font(.caption)
-                        .foregroundColor(.orange)
-                }
-            }
         }
         .padding(.horizontal, 16)
-        .padding(.leading, 32)
+        .padding(.leading, 8)
         .padding(.vertical, 4)
         .background(isHovered ? Color.primary.opacity(0.05) : Color.clear)
         .onHover { isHovered = $0 }
@@ -215,8 +223,8 @@ struct ReminderListRow: View {
     }
 
     private func openInReminders() {
-        if let extID = summary.externalIdentifier,
-           let url = URL(string: "x-apple-reminderkit://REMCDList/\(extID)") {
+        let calID = reminder.calendar.calendarIdentifier
+        if let url = URL(string: "x-apple-reminderkit://REMCDList/\(calID)") {
             NSWorkspace.shared.open(url)
         } else {
             NSWorkspace.shared.open(URL(string: "x-apple-reminderkit://")!)

@@ -85,6 +85,7 @@ public class EventManager: ObservableObject {
     @Published public private(set) var overdueReminders: Int = 0
     @Published public private(set) var undatedReminders: Int = 0
     @Published public var reminderListSummaries: [ReminderListSummary] = []
+    @Published public var reminderItems: [EKReminder] = []
     @Published public var calendarAccessGranted = false
     @Published public var reminderAccessGranted = false
 
@@ -259,10 +260,25 @@ public class EventManager: ObservableObject {
                 .map { ReminderListSummary(id: $0.key, listName: $0.value.name, color: $0.value.color, externalIdentifier: $0.value.externalID, overdueCount: $0.value.overdue, undatedCount: $0.value.undated) }
                 .sorted { $0.listName.localizedCaseInsensitiveCompare($1.listName) == .orderedAscending }
 
+            let overdueItems = reminders
+                .filter { r in
+                    guard let due = r.dueDateComponents.flatMap({ Calendar.current.date(from: $0) }) else { return false }
+                    return due < now
+                }
+                .sorted { a, b in
+                    let da = Calendar.current.date(from: a.dueDateComponents!)!
+                    let db = Calendar.current.date(from: b.dueDateComponents!)!
+                    return da < db
+                }
+            let undatedItems = reminders
+                .filter { $0.dueDateComponents == nil }
+                .sorted { ($0.title ?? "") < ($1.title ?? "") }
+
             DispatchQueue.main.async {
                 self.overdueReminders = totalOverdue
                 self.undatedReminders = totalUndated
                 self.reminderListSummaries = summaries
+                self.reminderItems = overdueItems + undatedItems
             }
         }
     }
