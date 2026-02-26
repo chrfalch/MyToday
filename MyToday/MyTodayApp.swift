@@ -84,6 +84,33 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         settingsWindowController?.showWindow()
     }
 
+    /// Per-emoji baseline offset for the menu bar font.
+    /// Geometric/filled shapes (🟢) render centred in the em-square and need no lift.
+    /// Pictograph emojis (👥 📍 📋 📅) sit slightly low and need +2pt.
+    /// Add new cases here whenever a new emoji is introduced to the status bar.
+    private func menuBarEmojiOffset(for scalar: Unicode.Scalar) -> CGFloat {
+        switch scalar.value {
+        case 0x1F7E2: return 0.0   // 🟢  large green circle — geometric, already centred
+        default:       return 2.0   // pictographs sit low, lift +2pt
+        }
+    }
+
+    /// Walks all leading non-ASCII characters (skipping spaces) in `str` and applies
+    /// the per-emoji baseline offset, stopping at the first ASCII character.
+    private func applyLeadingEmojiOffsets(to str: NSMutableAttributedString) {
+        let ns = str.string as NSString
+        var pos = 0
+        while pos < ns.length {
+            let range = ns.rangeOfComposedCharacterSequence(at: pos)
+            let substr = ns.substring(with: range)
+            if substr == " " { pos += 1; continue }
+            guard let scalar = substr.unicodeScalars.first, scalar.value > 0x007F else { break }
+            let offset = menuBarEmojiOffset(for: scalar)
+            if offset != 0 { str.addAttribute(.baselineOffset, value: offset, range: range) }
+            pos = range.location + range.length
+        }
+    }
+
     func updateStatusBar() {
         guard let button = statusItem?.button else { return }
 
@@ -101,26 +128,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         var titleAttrs: [NSAttributedString.Key: Any] = [.font: baseFont]
         if let color = urgencyColor { titleAttrs[.foregroundColor] = color }
         let result = NSMutableAttributedString(string: title, attributes: titleAttrs)
-        // Raise all leading emoji +2pt (e.g. both 🟢 and 👥 in "🟢 👥 SDK Sync");
-        // stop as soon as we hit a regular ASCII character.
-        if !title.isEmpty {
-            let nsTitle = title as NSString
-            var pos = 0
-            while pos < nsTitle.length {
-                let range = nsTitle.rangeOfComposedCharacterSequence(at: pos)
-                let substr = nsTitle.substring(with: range)
-                if substr == " " { pos += 1; continue }
-                // Non-ASCII → emoji; ASCII → regular text, stop
-                guard let firstScalar = substr.unicodeScalars.first, firstScalar.value > 0x007F else { break }
-                // 🟢 (U+1F7E2) is a solid geometric circle that renders centered in the
-                // em square — lifting it overshoots. Pictograph emojis (👥, 📍 etc.) sit
-                // slightly lower and do need the +2pt lift.
-                if firstScalar.value != 0x1F7E2 {
-                    result.addAttribute(.baselineOffset, value: 2.0, range: range)
-                }
-                pos = range.location + range.length
-            }
-        }
+        applyLeadingEmojiOffsets(to: result)
 
         // If in a current event, show the next upcoming event (≤30 min) dimmed after it
         let now = Date()
@@ -132,17 +140,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                     var nextTitle = nextItem.event.title ?? "Event"
                     if nextTitle.count > 14 { nextTitle = String(nextTitle.prefix(14)) + "…" }
                     let dimColor = NSColor.secondaryLabelColor
-                    let nextStr = NSMutableAttributedString(
-                        string: "  \(icon) \(nextTitle) in \(mins)m",
+                    // Build the next-event segment starting with the emoji so the shared
+                    // applyLeadingEmojiOffsets helper can handle the offset correctly.
+                    let nextCore = NSMutableAttributedString(
+                        string: "\(icon) \(nextTitle) in \(mins)m",
                         attributes: [.font: baseFont, .foregroundColor: dimColor]
                     )
-                    // Apply +2pt offset to the icon emoji (starts at index 2, after the two spaces)
-                    let nsNext = nextStr.string as NSString
-                    let iconRange = nsNext.rangeOfComposedCharacterSequence(at: 2)
-                    if let scalar = nextStr.string.unicodeScalars.dropFirst(2).first, scalar.value != 0x1F7E2 {
-                        nextStr.addAttribute(.baselineOffset, value: 2.0, range: iconRange)
-                    }
-                    result.append(nextStr)
+                    applyLeadingEmojiOffsets(to: nextCore)
+                    let spaces = NSAttributedString(
+                        string: "  ",
+                        attributes: [.font: baseFont, .foregroundColor: dimColor]
+                    )
+                    result.append(spaces)
+                    result.append(nextCore)
                 }
             }
         }
