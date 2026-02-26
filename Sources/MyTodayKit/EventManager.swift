@@ -97,6 +97,9 @@ public class EventManager: ObservableObject {
     @Published public var reminderItems: [EKReminder] = []
     @Published public var calendarAccessGranted = false
     @Published public var reminderAccessGranted = false
+    /// Ticked by the AppDelegate display timer (every 15s) so all popover rows
+    /// share the same source-of-truth "now" instead of each running their own timer.
+    @Published public var currentDate: Date = Date()
 
     public var settingsManager: CalendarSettingsManager? {
         didSet { subscribeToSettings() }

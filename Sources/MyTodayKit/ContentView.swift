@@ -259,8 +259,9 @@ struct ReminderItemRow: View {
 struct EventRowView: View {
     let event: EKEvent
     var groupName: String? = nil
-    @State private var now = Date()
-    let timer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
+    @EnvironmentObject var eventManager: EventManager
+
+    private var now: Date { eventManager.currentDate }
 
     private var isNow: Bool {
         event.startDate <= now && event.endDate > now
@@ -352,10 +353,8 @@ struct EventRowView: View {
         .onHover { isHovered = $0 }
         .contentShape(Rectangle())
         .onTapGesture { openInCalendar() }
-        .onReceive(timer) { _ in
-            now = Date()
-        }
     }
+
 
     private func openInCalendar() {
         let epoch = event.startDate.timeIntervalSinceReferenceDate

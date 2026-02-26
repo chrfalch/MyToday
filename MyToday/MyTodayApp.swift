@@ -113,6 +113,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
     func updateStatusBar() {
         guard let button = statusItem?.button else { return }
+        eventManager.currentDate = Date()   // keep popover rows in sync
 
         let title = eventManager.statusBarTitle()
         let baseFont = NSFont.menuBarFont(ofSize: 0)
