@@ -2,6 +2,38 @@ import Foundation
 import EventKit
 import Combine
 
+public enum EventType {
+    case meeting  // has attendees/invites
+    case place    // has a location but no attendees
+    case task     // no attendees, no location
+
+    public var sfSymbol: String {
+        switch self {
+        case .meeting: return "person.2.fill"
+        case .place:   return "mappin.fill"
+        case .task:    return "checklist"
+        }
+    }
+
+    public var emoji: String {
+        switch self {
+        case .meeting: return "👥"
+        case .place:   return "📍"
+        case .task:    return "📋"
+        }
+    }
+}
+
+extension EKEvent {
+    public var eventType: EventType {
+        let hasAttendees = attendees.map { !$0.isEmpty } ?? false
+        let hasLocation = location.map { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty } ?? false
+        if hasAttendees { return .meeting }
+        if hasLocation  { return .place }
+        return .task
+    }
+}
+
 public struct GroupedEvents: Identifiable {
     public var id: UUID?
     public var groupName: String
@@ -212,17 +244,18 @@ public class EventManager: ObservableObject {
 
     public func statusBarTitle() -> String {
         guard calendarAccessGranted else { return "📅 No Access" }
-        guard let next = nextEvent else { return "📅 No more meetings" }
+        guard let next = nextEvent else { return "📅 No more events" }
         let now = Date()
+        let icon = next.eventType.emoji
         if next.startDate <= now && next.endDate > now {
-            return "🟢 \(next.title ?? "Meeting")"
+            return "🟢 \(icon) \(next.title ?? "Event")"
         }
         let mins = Int(next.startDate.timeIntervalSince(now) / 60)
         if mins < 60 {
-            return "📅 \(next.title ?? "Meeting") in \(mins)m"
+            return "\(icon) \(next.title ?? "Event") in \(mins)m"
         }
         let formatter = DateFormatter()
         formatter.dateFormat = "h:mm a"
-        return "📅 \(next.title ?? "Meeting") at \(formatter.string(from: next.startDate))"
+        return "\(icon) \(next.title ?? "Event") at \(formatter.string(from: next.startDate))"
     }
 }

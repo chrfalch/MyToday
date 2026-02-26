@@ -260,6 +260,9 @@ struct EventRowView: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 HStack {
+                    Image(systemName: event.eventType.sfSymbol)
+                        .font(.caption2)
+                        .foregroundColor(eventTypeColor)
                     Text(event.title ?? "Untitled")
                         .font(.subheadline)
                         .fontWeight(isNow ? .semibold : .regular)
@@ -326,5 +329,13 @@ struct EventRowView: View {
     private var calendarColor: Color {
         guard let cgColor = event.calendar?.cgColor else { return .accentColor }
         return Color(cgColor: cgColor)
+    }
+
+    private var eventTypeColor: Color {
+        switch event.eventType {
+        case .meeting: return .blue
+        case .place:   return .orange
+        case .task:    return .secondary
+        }
     }
 }
