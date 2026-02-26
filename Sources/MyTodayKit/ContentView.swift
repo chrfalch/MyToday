@@ -75,13 +75,18 @@ public struct PopoverContentView: View {
                             Color.clear.frame(height: 0).id("currentEventsAnchor")
 
                             if eventManager.todaysEvents.isEmpty {
-                                HStack {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .foregroundColor(.green)
-                                    Text("No more events today")
+                                VStack(spacing: 8) {
+                                    Text("🎉")
+                                        .font(.system(size: 48))
+                                    Text("All clear!")
+                                        .font(.headline)
+                                        .foregroundColor(.primary)
+                                    Text("Nothing scheduled for today")
+                                        .font(.subheadline)
                                         .foregroundColor(.secondary)
                                 }
-                                .padding()
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 32)
                             } else {
                                 ForEach(eventManager.sortedEvents, id: \.event.eventIdentifier) { item in
                                     EventRowView(event: item.event, groupName: item.groupName)

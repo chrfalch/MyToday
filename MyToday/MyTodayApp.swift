@@ -40,6 +40,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                 eventManager: eventManager,
                 onOpenSettings: { [weak self] in self?.openSettings() }
             )
+            .environmentObject(eventManager)
         )
         self.popover = popover
 
