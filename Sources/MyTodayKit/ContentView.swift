@@ -35,55 +35,65 @@ public struct PopoverContentView: View {
 
             Divider()
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    // Reminders summary
-                    if eventManager.reminderAccessGranted {
-                        RemindersSectionView(
-                            overdue: eventManager.overdueReminders,
-                            undated: eventManager.undatedReminders,
-                            reminderItems: eventManager.reminderItems
-                        )
-                        Divider().padding(.leading, 16)
-                    }
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        // Reminders summary
+                        if eventManager.reminderAccessGranted {
+                            RemindersSectionView(
+                                overdue: eventManager.overdueReminders,
+                                undated: eventManager.undatedReminders,
+                                reminderItems: eventManager.reminderItems
+                            )
+                            Divider().padding(.leading, 16)
+                        }
 
-                    // Meetings
-                    if !eventManager.calendarAccessGranted {
-                        Text("Calendar access required.\nPlease grant access in System Settings → Privacy → Calendars.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
-                            .padding()
-                    } else {
-                        // Past task events (grayed, above current/upcoming)
-                        if !eventManager.pastTaskEvents.isEmpty {
-                            Text("EARLIER")
-                                .font(.caption2)
-                                .fontWeight(.semibold)
+                        // Meetings
+                        if !eventManager.calendarAccessGranted {
+                            Text("Calendar access required.\nPlease grant access in System Settings → Privacy → Calendars.")
+                                .font(.caption)
                                 .foregroundColor(.secondary)
-                                .padding(.horizontal, 16)
-                                .padding(.top, 10)
-                                .padding(.bottom, 4)
-                            ForEach(eventManager.pastTaskEvents, id: \.eventIdentifier) { event in
-                                EventRowView(event: event)
-                                Divider().padding(.leading, 16)
-                            }
-                        }
-
-                        if eventManager.todaysEvents.isEmpty {
-                            HStack {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundColor(.green)
-                                Text("No more events today")
-                                    .foregroundColor(.secondary)
-                            }
-                            .padding()
+                                .multilineTextAlignment(.center)
+                                .padding()
                         } else {
-                            ForEach(eventManager.sortedEvents, id: \.event.eventIdentifier) { item in
-                                EventRowView(event: item.event, groupName: item.groupName)
-                                Divider().padding(.leading, 16)
+                            // Past task events (grayed, above current/upcoming)
+                            if !eventManager.pastTaskEvents.isEmpty {
+                                Text("EARLIER")
+                                    .font(.caption2)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.secondary)
+                                    .padding(.horizontal, 16)
+                                    .padding(.top, 10)
+                                    .padding(.bottom, 4)
+                                ForEach(eventManager.pastTaskEvents, id: \.eventIdentifier) { event in
+                                    EventRowView(event: event)
+                                    Divider().padding(.leading, 16)
+                                }
+                            }
+
+                            // Anchor for scroll-to-current
+                            Color.clear.frame(height: 0).id("currentEventsAnchor")
+
+                            if eventManager.todaysEvents.isEmpty {
+                                HStack {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundColor(.green)
+                                    Text("No more events today")
+                                        .foregroundColor(.secondary)
+                                }
+                                .padding()
+                            } else {
+                                ForEach(eventManager.sortedEvents, id: \.event.eventIdentifier) { item in
+                                    EventRowView(event: item.event, groupName: item.groupName)
+                                    Divider().padding(.leading, 16)
+                                }
                             }
                         }
+                    }
+                }
+                .onReceive(eventManager.scrollToCurrentEvent) { _ in
+                    withAnimation(.easeInOut(duration: 0.25)) {
+                        proxy.scrollTo("currentEventsAnchor", anchor: .top)
                     }
                 }
             }

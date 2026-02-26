@@ -83,6 +83,9 @@ public struct ReminderListSummary: Identifiable {
 public class EventManager: ObservableObject {
     public let store = EKEventStore()
 
+    /// Fired just before the popover is shown — ContentView observes this to scroll to the current event.
+    public let scrollToCurrentEvent = PassthroughSubject<Void, Never>()
+
     @Published public var todaysEvents: [EKEvent] = []
     @Published public var pastTaskEvents: [EKEvent] = []
     @Published public var groupedEvents: [GroupedEvents] = []
@@ -292,7 +295,7 @@ public class EventManager: ObservableObject {
     public var statusBarUrgency: StatusBarUrgency {
         guard let next = nextEvent else { return .none }
         let now = Date()
-        if next.startDate <= now { return .imminent }  // in progress
+        if next.startDate <= now { return .none }  // already in progress — no alert needed
         let mins = next.startDate.timeIntervalSince(now) / 60
         if mins <= 2 { return .imminent }
         if mins <= 5 { return .soon }
@@ -305,7 +308,7 @@ public class EventManager: ObservableObject {
         let now = Date()
         let icon = next.eventType.emoji
         if next.startDate <= now && next.endDate > now {
-            return "🟢 \(icon) \(next.title ?? "Event")"
+            return "🟢 \(next.title ?? "Event")"
         }
         let mins = Int(next.startDate.timeIntervalSince(now) / 60)
         if mins < 60 {

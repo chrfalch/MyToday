@@ -12,7 +12,7 @@ struct MyTodayApp: App {
     }
 }
 
-class AppDelegate: NSObject, NSApplicationDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     var statusItem: NSStatusItem?
     var popover: NSPopover?
     var eventManager = EventManager()
@@ -34,6 +34,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let popover = NSPopover()
         popover.contentSize = NSSize(width: 340, height: 400)
         popover.behavior = .transient
+        popover.delegate = self
         popover.contentViewController = NSHostingController(
             rootView: PopoverContentView(
                 eventManager: eventManager,
@@ -100,10 +101,50 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         var titleAttrs: [NSAttributedString.Key: Any] = [.font: baseFont]
         if let color = urgencyColor { titleAttrs[.foregroundColor] = color }
         let result = NSMutableAttributedString(string: title, attributes: titleAttrs)
-        // Raise only the leading emoji icon +2pt; leave the rest of the text at baseline
+        // Raise all leading emoji +2pt (e.g. both 🟢 and 👥 in "🟢 👥 SDK Sync");
+        // stop as soon as we hit a regular ASCII character.
         if !title.isEmpty {
-            let emojiRange = (title as NSString).rangeOfComposedCharacterSequence(at: 0)
-            result.addAttribute(.baselineOffset, value: 2.0, range: emojiRange)
+            let nsTitle = title as NSString
+            var pos = 0
+            while pos < nsTitle.length {
+                let range = nsTitle.rangeOfComposedCharacterSequence(at: pos)
+                let substr = nsTitle.substring(with: range)
+                if substr == " " { pos += 1; continue }
+                // Non-ASCII → emoji; ASCII → regular text, stop
+                guard let firstScalar = substr.unicodeScalars.first, firstScalar.value > 0x007F else { break }
+                // 🟢 (U+1F7E2) is a solid geometric circle that renders centered in the
+                // em square — lifting it overshoots. Pictograph emojis (👥, 📍 etc.) sit
+                // slightly lower and do need the +2pt lift.
+                if firstScalar.value != 0x1F7E2 {
+                    result.addAttribute(.baselineOffset, value: 2.0, range: range)
+                }
+                pos = range.location + range.length
+            }
+        }
+
+        // If in a current event, show the next upcoming event (≤30 min) dimmed after it
+        let now = Date()
+        if let current = eventManager.nextEvent, current.startDate <= now, current.endDate > now {
+            if let nextItem = eventManager.sortedEvents.first(where: { $0.event.startDate > now }) {
+                let mins = Int(nextItem.event.startDate.timeIntervalSince(now) / 60)
+                if mins <= 30 {
+                    let icon = nextItem.event.eventType.emoji
+                    var nextTitle = nextItem.event.title ?? "Event"
+                    if nextTitle.count > 14 { nextTitle = String(nextTitle.prefix(14)) + "…" }
+                    let dimColor = NSColor.secondaryLabelColor
+                    let nextStr = NSMutableAttributedString(
+                        string: "  \(icon) \(nextTitle) in \(mins)m",
+                        attributes: [.font: baseFont, .foregroundColor: dimColor]
+                    )
+                    // Apply +2pt offset to the icon emoji (starts at index 2, after the two spaces)
+                    let nsNext = nextStr.string as NSString
+                    let iconRange = nsNext.rangeOfComposedCharacterSequence(at: 2)
+                    if let scalar = nextStr.string.unicodeScalars.dropFirst(2).first, scalar.value != 0x1F7E2 {
+                        nextStr.addAttribute(.baselineOffset, value: 2.0, range: iconRange)
+                    }
+                    result.append(nextStr)
+                }
+            }
         }
 
         let dotFont = NSFont.systemFont(ofSize: 8)
@@ -149,5 +190,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             popover?.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             NSApp.activate(ignoringOtherApps: true)
         }
+    }
+
+    // Fired by NSPopover after the popover has fully appeared and laid out
+    func popoverDidShow(_ notification: Notification) {
+        eventManager.scrollToCurrentEvent.send()
     }
 }
