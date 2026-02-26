@@ -145,8 +145,8 @@ struct RemindersSectionView: View {
                         }
                         if undated > 0 {
                             HStack(spacing: 3) {
-                                Circle().fill(Color(NSColor.systemOrange)).frame(width: 8, height: 8)
-                                Text("\(undated)").font(.caption).foregroundColor(Color(NSColor.systemOrange))
+                                Circle().fill(Color(NSColor.systemYellow)).frame(width: 8, height: 8)
+                                Text("\(undated)").font(.caption).foregroundColor(Color(NSColor.systemYellow))
                             }
                         }
                     }
@@ -183,7 +183,12 @@ struct ReminderItemRow: View {
     }
 
     private var dotColor: Color {
-        isOverdue ? Color(NSColor.systemRed) : Color(NSColor.systemOrange)
+        isOverdue ? Color(NSColor.systemRed) : Color(NSColor.systemYellow)
+    }
+
+    private var calendarColor: Color {
+        guard let cgColor = reminder.calendar.cgColor else { return .secondary }
+        return Color(cgColor: cgColor)
     }
 
     var body: some View {
@@ -196,17 +201,27 @@ struct ReminderItemRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(reminder.title ?? "Untitled")
                     .font(.caption)
-                    .foregroundColor(isOverdue ? Color(NSColor.systemRed) : .primary)
+                    .foregroundColor(.primary)
                     .lineLimit(2)
 
                 if let due = dueDate {
-                    Text(due, style: .relative)
-                        .font(.caption2)
-                        .foregroundColor(Color(NSColor.systemRed))
+                    HStack(spacing: 4) {
+                        Text(due, style: .relative)
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        Text("· \(reminder.calendar.title)")
+                            .font(.caption2)
+                            .foregroundColor(calendarColor)
+                    }
                 } else {
-                    Text(reminder.calendar.title)
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
+                    HStack(spacing: 4) {
+                        Text("No due date")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        Text("· \(reminder.calendar.title)")
+                            .font(.caption2)
+                            .foregroundColor(calendarColor)
+                    }
                 }
             }
 
