@@ -6,8 +6,13 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		8AB10F3F2F5028940089C907 /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 8AB10F3E2F5028940089C907 /* Info.plist */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		8AB10F282F5027EF0089C907 /* MyToday.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MyToday.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		8AB10F3E2F5028940089C907 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -34,6 +39,7 @@
 			children = (
 				8AB10F2A2F5027EF0089C907 /* MyToday */,
 				8AB10F292F5027EF0089C907 /* Products */,
+				8AB10F3E2F5028940089C907 /* Info.plist */,
 			);
 			sourceTree = "<group>";
 		};
@@ -109,6 +115,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8AB10F3F2F5028940089C907 /* Info.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
