@@ -2,6 +2,48 @@ import Foundation
 import EventKit
 import Combine
 
+public enum EventType {
+    case meeting  // has attendees/invites
+    case place    // has a location but no attendees
+    case task     // no attendees, no location
+
+    public var sfSymbol: String {
+        switch self {
+        case .meeting: return "person.2.fill"
+        case .place:   return "mappin.fill"
+        case .task:    return "checklist"
+        }
+    }
+
+    public var emoji: String {
+        switch self {
+        case .meeting: return "👥"
+        case .place:   return "📍"
+        case .task:    return "📋"
+        }
+    }
+}
+
+extension EKEvent {
+    public var eventType: EventType {
+        let hasAttendees = attendees.map { !$0.isEmpty } ?? false
+        let hasLocation = location.map { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty } ?? false
+        if hasAttendees { return .meeting }
+        if hasLocation  { return .place }
+        return .task
+    }
+}
+
+public struct EventWithGroup {
+    public var event: EKEvent
+    public var groupName: String?
+
+    public init(event: EKEvent, groupName: String?) {
+        self.event = event
+        self.groupName = groupName
+    }
+}
+
 public struct GroupedEvents: Identifiable {
     public var id: UUID?
     public var groupName: String
@@ -36,7 +78,9 @@ public class EventManager: ObservableObject {
     public let store = EKEventStore()
 
     @Published public var todaysEvents: [EKEvent] = []
+    @Published public var pastTaskEvents: [EKEvent] = []
     @Published public var groupedEvents: [GroupedEvents] = []
+    @Published public var sortedEvents: [EventWithGroup] = []
     @Published public var nextEvent: EKEvent? = nil
     @Published public private(set) var overdueReminders: Int = 0
     @Published public private(set) var undatedReminders: Int = 0
@@ -118,26 +162,32 @@ public class EventManager: ObservableObject {
         settingsManager?.syncWithSystemCalendars(systemCalendars)
 
         let now = Date()
+        let startOfDay = Calendar.current.startOfDay(for: now)
         let endOfDay = Calendar.current.date(bySettingHour: 23, minute: 59, second: 59, of: now)!
 
         // Use visible calendars from settings if available, otherwise nil (all)
         let calendars: [EKCalendar]? = settingsManager?.visibleCalendars(from: store)
 
-        let predicate = store.predicateForEvents(withStart: now, end: endOfDay, calendars: calendars)
-        let events = store.events(matching: predicate)
+        let predicate = store.predicateForEvents(withStart: startOfDay, end: endOfDay, calendars: calendars)
+        let allEvents = store.events(matching: predicate)
             .filter { !$0.isAllDay }
             .sorted { $0.startDate < $1.startDate }
 
+        let upcoming = allEvents.filter { $0.startDate > now || ($0.startDate <= now && $0.endDate > now) }
+        let pastTasks = allEvents.filter { $0.endDate <= now && $0.eventType == .task }
+
         DispatchQueue.main.async {
-            self.todaysEvents = events
-            self.nextEvent = events.first(where: { $0.startDate > now || ($0.startDate <= now && $0.endDate > now) })
-            self.buildGroupedEvents(from: events)
+            self.todaysEvents = upcoming
+            self.pastTaskEvents = pastTasks
+            self.nextEvent = upcoming.first
+            self.buildGroupedEvents(from: upcoming)
         }
     }
 
     private func buildGroupedEvents(from events: [EKEvent]) {
         guard let settings = settingsManager else {
             groupedEvents = [GroupedEvents(id: nil, groupName: "Today", events: events)]
+            sortedEvents = events.map { EventWithGroup(event: $0, groupName: nil) }
             return
         }
 
@@ -163,6 +213,13 @@ public class EventManager: ObservableObject {
         }
 
         groupedEvents = result
+
+        let showGroupName = result.count > 1 || (result.count == 1 && result.first?.groupName != "Today")
+        sortedEvents = result
+            .flatMap { group in
+                group.events.map { EventWithGroup(event: $0, groupName: showGroupName ? group.groupName : nil) }
+            }
+            .sorted { $0.event.startDate < $1.event.startDate }
     }
 
     func fetchReminders() {
@@ -212,17 +269,18 @@ public class EventManager: ObservableObject {
 
     public func statusBarTitle() -> String {
         guard calendarAccessGranted else { return "📅 No Access" }
-        guard let next = nextEvent else { return "📅 No more meetings" }
+        guard let next = nextEvent else { return "📅 No more events" }
         let now = Date()
+        let icon = next.eventType.emoji
         if next.startDate <= now && next.endDate > now {
-            return "🟢 \(next.title ?? "Meeting")"
+            return "🟢 \(icon) \(next.title ?? "Event")"
         }
         let mins = Int(next.startDate.timeIntervalSince(now) / 60)
         if mins < 60 {
-            return "📅 \(next.title ?? "Meeting") in \(mins)m"
+            return "\(icon) \(next.title ?? "Event") in \(mins)m"
         }
         let formatter = DateFormatter()
         formatter.dateFormat = "h:mm a"
-        return "📅 \(next.title ?? "Meeting") at \(formatter.string(from: next.startDate))"
+        return "\(icon) \(next.title ?? "Event") at \(formatter.string(from: next.startDate))"
     }
 }

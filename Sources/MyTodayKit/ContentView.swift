@@ -11,14 +11,6 @@ public struct PopoverContentView: View {
         self.onOpenSettings = onOpenSettings
     }
 
-    private var showGroupHeaders: Bool {
-        let groups = eventManager.groupedEvents
-        if groups.count == 1 && groups.first?.groupName == "Today" {
-            return false
-        }
-        return groups.count > 1 || (groups.count == 1 && groups.first?.groupName != "Today")
-    }
-
     public var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Header
@@ -62,27 +54,33 @@ public struct PopoverContentView: View {
                             .foregroundColor(.secondary)
                             .multilineTextAlignment(.center)
                             .padding()
-                    } else if eventManager.todaysEvents.isEmpty {
-                        HStack {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(.green)
-                            Text("No more meetings today")
-                                .foregroundColor(.secondary)
-                        }
-                        .padding()
                     } else {
-                        ForEach(eventManager.groupedEvents) { group in
-                            if showGroupHeaders {
-                                Text(group.groupName.uppercased())
-                                    .font(.caption2)
-                                    .fontWeight(.semibold)
-                                    .foregroundColor(.secondary)
-                                    .padding(.horizontal, 16)
-                                    .padding(.top, 10)
-                                    .padding(.bottom, 4)
-                            }
-                            ForEach(group.events, id: \.eventIdentifier) { event in
+                        // Past task events (grayed, above current/upcoming)
+                        if !eventManager.pastTaskEvents.isEmpty {
+                            Text("EARLIER")
+                                .font(.caption2)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.secondary)
+                                .padding(.horizontal, 16)
+                                .padding(.top, 10)
+                                .padding(.bottom, 4)
+                            ForEach(eventManager.pastTaskEvents, id: \.eventIdentifier) { event in
                                 EventRowView(event: event)
+                                Divider().padding(.leading, 16)
+                            }
+                        }
+
+                        if eventManager.todaysEvents.isEmpty {
+                            HStack {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.green)
+                                Text("No more events today")
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding()
+                        } else {
+                            ForEach(eventManager.sortedEvents, id: \.event.eventIdentifier) { item in
+                                EventRowView(event: item.event, groupName: item.groupName)
                                 Divider().padding(.leading, 16)
                             }
                         }
@@ -228,6 +226,7 @@ struct ReminderListRow: View {
 
 struct EventRowView: View {
     let event: EKEvent
+    var groupName: String? = nil
     @State private var now = Date()
     let timer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
 
@@ -260,6 +259,9 @@ struct EventRowView: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 HStack {
+                    Image(systemName: event.eventType.sfSymbol)
+                        .font(.caption2)
+                        .foregroundColor(eventTypeColor)
                     Text(event.title ?? "Untitled")
                         .font(.subheadline)
                         .fontWeight(isNow ? .semibold : .regular)
@@ -287,9 +289,16 @@ struct EventRowView: View {
                     }
                 }
 
-                Text(timeString)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                HStack(spacing: 4) {
+                    Text(timeString)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    if let name = groupName {
+                        Text("· \(name)")
+                            .font(.caption)
+                            .foregroundColor(.secondary.opacity(0.6))
+                    }
+                }
 
                 if let location = event.location, !location.isEmpty {
                     Label(location, systemImage: "mappin.circle")
@@ -326,5 +335,13 @@ struct EventRowView: View {
     private var calendarColor: Color {
         guard let cgColor = event.calendar?.cgColor else { return .accentColor }
         return Color(cgColor: cgColor)
+    }
+
+    private var eventTypeColor: Color {
+        switch event.eventType {
+        case .meeting: return .blue
+        case .place:   return .orange
+        case .task:    return .secondary
+        }
     }
 }
