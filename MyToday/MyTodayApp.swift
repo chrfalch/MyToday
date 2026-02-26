@@ -87,14 +87,21 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             string: title,
             attributes: [.font: baseFont]
         )
+        // Raise only the leading emoji icon +2pt; leave the rest of the text at baseline
+        if !title.isEmpty {
+            let emojiRange = (title as NSString).rangeOfComposedCharacterSequence(at: 0)
+            result.addAttribute(.baselineOffset, value: 2.0, range: emojiRange)
+        }
 
         let dotFont = NSFont.systemFont(ofSize: 8)
+        let dotBaseline = (baseFont.pointSize - dotFont.pointSize) / 2 - 1
         let countFont = NSFont.monospacedDigitSystemFont(ofSize: baseFont.pointSize, weight: .medium)
 
         if eventManager.overdueReminders > 0 {
             let dot = NSAttributedString(string: "  \u{25CF}", attributes: [
                 .foregroundColor: NSColor.systemRed,
-                .font: dotFont
+                .font: dotFont,
+                .baselineOffset: dotBaseline
             ])
             let count = NSAttributedString(string: " \(eventManager.overdueReminders)", attributes: [
                 .font: countFont
@@ -106,7 +113,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if eventManager.undatedReminders > 0 {
             let dot = NSAttributedString(string: "  \u{25CF}", attributes: [
                 .foregroundColor: NSColor.systemOrange,
-                .font: dotFont
+                .font: dotFont,
+                .baselineOffset: dotBaseline
             ])
             let count = NSAttributedString(string: " \(eventManager.undatedReminders)", attributes: [
                 .font: countFont
