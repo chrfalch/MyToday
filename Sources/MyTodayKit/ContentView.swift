@@ -139,14 +139,14 @@ struct RemindersSectionView: View {
                     HStack(spacing: 8) {
                         if overdue > 0 {
                             HStack(spacing: 3) {
-                                Circle().fill(Color.red).frame(width: 8, height: 8)
-                                Text("\(overdue)").font(.caption).foregroundColor(.red)
+                                Circle().fill(Color(NSColor.systemRed)).frame(width: 8, height: 8)
+                                Text("\(overdue)").font(.caption).foregroundColor(Color(NSColor.systemRed))
                             }
                         }
                         if undated > 0 {
                             HStack(spacing: 3) {
-                                Circle().fill(Color.orange).frame(width: 8, height: 8)
-                                Text("\(undated)").font(.caption).foregroundColor(.orange)
+                                Circle().fill(Color(NSColor.systemOrange)).frame(width: 8, height: 8)
+                                Text("\(undated)").font(.caption).foregroundColor(Color(NSColor.systemOrange))
                             }
                         }
                     }
@@ -182,28 +182,27 @@ struct ReminderItemRow: View {
         dueDate.map { $0 < Date() } ?? false
     }
 
-    private var listColor: Color {
-        guard let cg = reminder.calendar.cgColor else { return .secondary }
-        return Color(cgColor: cg)
+    private var dotColor: Color {
+        isOverdue ? Color(NSColor.systemRed) : Color(NSColor.systemOrange)
     }
 
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
             Circle()
-                .fill(listColor)
+                .fill(dotColor)
                 .frame(width: 8, height: 8)
                 .padding(.top, 4)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(reminder.title ?? "Untitled")
                     .font(.caption)
-                    .foregroundColor(isOverdue ? .red : .primary)
+                    .foregroundColor(isOverdue ? Color(NSColor.systemRed) : .primary)
                     .lineLimit(2)
 
                 if let due = dueDate {
                     Text(due, style: .relative)
                         .font(.caption2)
-                        .foregroundColor(.red)
+                        .foregroundColor(Color(NSColor.systemRed))
                 } else {
                     Text(reminder.calendar.title)
                         .font(.caption2)
