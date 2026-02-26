@@ -62,28 +62,45 @@ public struct PopoverContentView: View {
                             .foregroundColor(.secondary)
                             .multilineTextAlignment(.center)
                             .padding()
-                    } else if eventManager.todaysEvents.isEmpty {
-                        HStack {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(.green)
-                            Text("No more meetings today")
-                                .foregroundColor(.secondary)
-                        }
-                        .padding()
                     } else {
-                        ForEach(eventManager.groupedEvents) { group in
-                            if showGroupHeaders {
-                                Text(group.groupName.uppercased())
-                                    .font(.caption2)
-                                    .fontWeight(.semibold)
-                                    .foregroundColor(.secondary)
-                                    .padding(.horizontal, 16)
-                                    .padding(.top, 10)
-                                    .padding(.bottom, 4)
-                            }
-                            ForEach(group.events, id: \.eventIdentifier) { event in
+                        // Past task events (grayed, above current/upcoming)
+                        if !eventManager.pastTaskEvents.isEmpty {
+                            Text("EARLIER")
+                                .font(.caption2)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.secondary)
+                                .padding(.horizontal, 16)
+                                .padding(.top, 10)
+                                .padding(.bottom, 4)
+                            ForEach(eventManager.pastTaskEvents, id: \.eventIdentifier) { event in
                                 EventRowView(event: event)
                                 Divider().padding(.leading, 16)
+                            }
+                        }
+
+                        if eventManager.todaysEvents.isEmpty {
+                            HStack {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.green)
+                                Text("No more events today")
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding()
+                        } else {
+                            ForEach(eventManager.groupedEvents) { group in
+                                if showGroupHeaders {
+                                    Text(group.groupName.uppercased())
+                                        .font(.caption2)
+                                        .fontWeight(.semibold)
+                                        .foregroundColor(.secondary)
+                                        .padding(.horizontal, 16)
+                                        .padding(.top, 10)
+                                        .padding(.bottom, 4)
+                                }
+                                ForEach(group.events, id: \.eventIdentifier) { event in
+                                    EventRowView(event: event)
+                                    Divider().padding(.leading, 16)
+                                }
                             }
                         }
                     }

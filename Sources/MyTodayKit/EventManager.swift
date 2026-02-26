@@ -68,6 +68,7 @@ public class EventManager: ObservableObject {
     public let store = EKEventStore()
 
     @Published public var todaysEvents: [EKEvent] = []
+    @Published public var pastTaskEvents: [EKEvent] = []
     @Published public var groupedEvents: [GroupedEvents] = []
     @Published public var nextEvent: EKEvent? = nil
     @Published public private(set) var overdueReminders: Int = 0
@@ -150,20 +151,25 @@ public class EventManager: ObservableObject {
         settingsManager?.syncWithSystemCalendars(systemCalendars)
 
         let now = Date()
+        let startOfDay = Calendar.current.startOfDay(for: now)
         let endOfDay = Calendar.current.date(bySettingHour: 23, minute: 59, second: 59, of: now)!
 
         // Use visible calendars from settings if available, otherwise nil (all)
         let calendars: [EKCalendar]? = settingsManager?.visibleCalendars(from: store)
 
-        let predicate = store.predicateForEvents(withStart: now, end: endOfDay, calendars: calendars)
-        let events = store.events(matching: predicate)
+        let predicate = store.predicateForEvents(withStart: startOfDay, end: endOfDay, calendars: calendars)
+        let allEvents = store.events(matching: predicate)
             .filter { !$0.isAllDay }
             .sorted { $0.startDate < $1.startDate }
 
+        let upcoming = allEvents.filter { $0.startDate > now || ($0.startDate <= now && $0.endDate > now) }
+        let pastTasks = allEvents.filter { $0.endDate <= now && $0.eventType == .task }
+
         DispatchQueue.main.async {
-            self.todaysEvents = events
-            self.nextEvent = events.first(where: { $0.startDate > now || ($0.startDate <= now && $0.endDate > now) })
-            self.buildGroupedEvents(from: events)
+            self.todaysEvents = upcoming
+            self.pastTaskEvents = pastTasks
+            self.nextEvent = upcoming.first
+            self.buildGroupedEvents(from: upcoming)
         }
     }
 
