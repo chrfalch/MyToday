@@ -2,9 +2,14 @@ import SwiftUI
 import Combine
 import EventKit
 
-struct PopoverContentView: View {
+public struct PopoverContentView: View {
     @ObservedObject var eventManager: EventManager
     var onOpenSettings: () -> Void = {}
+
+    public init(eventManager: EventManager, onOpenSettings: @escaping () -> Void = {}) {
+        self.eventManager = eventManager
+        self.onOpenSettings = onOpenSettings
+    }
 
     private var showGroupHeaders: Bool {
         let groups = eventManager.groupedEvents
@@ -14,7 +19,7 @@ struct PopoverContentView: View {
         return groups.count > 1 || (groups.count == 1 && groups.first?.groupName != "Today")
     }
 
-    var body: some View {
+    public var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Header
             HStack {

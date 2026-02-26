@@ -1,6 +1,7 @@
 import SwiftUI
 import EventKit
 import Combine
+import MyTodayKit
 
 @main
 struct MyTodayApp: App {

@@ -2,39 +2,56 @@ import Foundation
 import EventKit
 import Combine
 
-struct GroupedEvents: Identifiable {
-    var id: UUID?
-    var groupName: String
-    var events: [EKEvent]
+public struct GroupedEvents: Identifiable {
+    public var id: UUID?
+    public var groupName: String
+    public var events: [EKEvent]
+
+    public init(id: UUID? = nil, groupName: String, events: [EKEvent]) {
+        self.id = id
+        self.groupName = groupName
+        self.events = events
+    }
 }
 
-struct ReminderListSummary: Identifiable {
-    var id: String // calendar identifier
-    var listName: String
-    var color: CGColor
-    var externalIdentifier: String?
-    var overdueCount: Int
-    var undatedCount: Int
+public struct ReminderListSummary: Identifiable {
+    public var id: String // calendar identifier
+    public var listName: String
+    public var color: CGColor
+    public var externalIdentifier: String?
+    public var overdueCount: Int
+    public var undatedCount: Int
+
+    public init(id: String, listName: String, color: CGColor, externalIdentifier: String?, overdueCount: Int, undatedCount: Int) {
+        self.id = id
+        self.listName = listName
+        self.color = color
+        self.externalIdentifier = externalIdentifier
+        self.overdueCount = overdueCount
+        self.undatedCount = undatedCount
+    }
 }
 
-class EventManager: ObservableObject {
-    let store = EKEventStore()
+public class EventManager: ObservableObject {
+    public let store = EKEventStore()
 
-    @Published var todaysEvents: [EKEvent] = []
-    @Published var groupedEvents: [GroupedEvents] = []
-    @Published var nextEvent: EKEvent? = nil
-    @Published var overdueReminders: Int = 0
-    @Published var undatedReminders: Int = 0
-    @Published var reminderListSummaries: [ReminderListSummary] = []
-    @Published var calendarAccessGranted = false
-    @Published var reminderAccessGranted = false
+    @Published public var todaysEvents: [EKEvent] = []
+    @Published public var groupedEvents: [GroupedEvents] = []
+    @Published public var nextEvent: EKEvent? = nil
+    @Published public private(set) var overdueReminders: Int = 0
+    @Published public private(set) var undatedReminders: Int = 0
+    @Published public var reminderListSummaries: [ReminderListSummary] = []
+    @Published public var calendarAccessGranted = false
+    @Published public var reminderAccessGranted = false
 
-    var settingsManager: CalendarSettingsManager? {
+    public var settingsManager: CalendarSettingsManager? {
         didSet { subscribeToSettings() }
     }
 
     private var settingsCancellable: AnyCancellable?
     private var storeChangedCancellable: AnyCancellable?
+
+    public init() {}
 
     private func subscribeToSettings() {
         settingsCancellable = settingsManager?.objectWillChange
@@ -44,7 +61,7 @@ class EventManager: ObservableObject {
             }
     }
 
-    func startObservingStoreChanges() {
+    public func startObservingStoreChanges() {
         storeChangedCancellable = NotificationCenter.default
             .publisher(for: .EKEventStoreChanged, object: store)
             .debounce(for: .milliseconds(500), scheduler: RunLoop.main)
@@ -53,7 +70,7 @@ class EventManager: ObservableObject {
             }
     }
 
-    func requestAccess(completion: @escaping () -> Void) {
+    public func requestAccess(completion: @escaping () -> Void) {
         let group = DispatchGroup()
 
         group.enter()
@@ -88,7 +105,7 @@ class EventManager: ObservableObject {
         }
     }
 
-    func refresh() {
+    public func refresh() {
         fetchEvents()
         fetchReminders()
     }
@@ -193,7 +210,7 @@ class EventManager: ObservableObject {
         }
     }
 
-    func statusBarTitle() -> String {
+    public func statusBarTitle() -> String {
         guard calendarAccessGranted else { return "📅 No Access" }
         guard let next = nextEvent else { return "📅 No more meetings" }
         let now = Date()

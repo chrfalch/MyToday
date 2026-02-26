@@ -2,32 +2,50 @@ import Foundation
 import EventKit
 import Combine
 
-struct CalendarGroup: Codable, Identifiable {
-    var id: UUID
-    var name: String
-    var sortOrder: Int
+public struct CalendarGroup: Codable, Identifiable {
+    public var id: UUID
+    public var name: String
+    public var sortOrder: Int
+
+    public init(id: UUID, name: String, sortOrder: Int) {
+        self.id = id
+        self.name = name
+        self.sortOrder = sortOrder
+    }
 }
 
-struct CalendarAssignment: Codable, Identifiable {
-    var id: String // EKCalendar.calendarIdentifier
-    var isVisible: Bool
-    var groupID: UUID?
+public struct CalendarAssignment: Codable, Identifiable {
+    public var id: String // EKCalendar.calendarIdentifier
+    public var isVisible: Bool
+    public var groupID: UUID?
+
+    public init(id: String, isVisible: Bool, groupID: UUID?) {
+        self.id = id
+        self.isVisible = isVisible
+        self.groupID = groupID
+    }
 }
 
-struct CalendarSettingsData: Codable {
-    var groups: [CalendarGroup] = []
-    var assignments: [CalendarAssignment] = []
-    var reminderAssignments: [CalendarAssignment] = []
+public struct CalendarSettingsData: Codable {
+    public var groups: [CalendarGroup] = []
+    public var assignments: [CalendarAssignment] = []
+    public var reminderAssignments: [CalendarAssignment] = []
+
+    public init(groups: [CalendarGroup] = [], assignments: [CalendarAssignment] = [], reminderAssignments: [CalendarAssignment] = []) {
+        self.groups = groups
+        self.assignments = assignments
+        self.reminderAssignments = reminderAssignments
+    }
 }
 
-class CalendarSettingsManager: ObservableObject {
+public class CalendarSettingsManager: ObservableObject {
     private static let key = "CalendarSettingsData"
 
-    @Published var data: CalendarSettingsData {
+    @Published public var data: CalendarSettingsData {
         didSet { save() }
     }
 
-    init() {
+    public init() {
         if let raw = UserDefaults.standard.data(forKey: Self.key),
            let decoded = try? JSONDecoder().decode(CalendarSettingsData.self, from: raw) {
             data = decoded

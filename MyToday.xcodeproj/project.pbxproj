@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		8AB10F3F2F5028940089C907 /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 8AB10F3E2F5028940089C907 /* Info.plist */; };
 		8AB10F412F50291F0089C907 /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = 8AB10F402F50291F0089C907 /* README.md */; };
+		8AB10F502F5030000089C907 /* MyTodayKit in Frameworks */ = {isa = PBXBuildFile; productRef = 8AB10F512F5030000089C907 /* MyTodayKit */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -30,6 +31,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8AB10F502F5030000089C907 /* MyTodayKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -74,6 +76,7 @@
 			);
 			name = MyToday;
 			packageProductDependencies = (
+				8AB10F512F5030000089C907 /* MyTodayKit */,
 			);
 			productName = MyToday;
 			productReference = 8AB10F282F5027EF0089C907 /* MyToday.app */;
@@ -105,6 +108,9 @@
 			minimizedProjectReferenceProxies = 1;
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 8AB10F292F5027EF0089C907 /* Products */;
+			packageReferences = (
+				8AB10F522F5030000089C907 /* XCLocalSwiftPackageReference "." */,
+			);
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -352,6 +358,20 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		8AB10F522F5030000089C907 /* XCLocalSwiftPackageReference "." */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = .;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		8AB10F512F5030000089C907 /* MyTodayKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = MyTodayKit;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 8AB10F202F5027EF0089C907 /* Project object */;
 }

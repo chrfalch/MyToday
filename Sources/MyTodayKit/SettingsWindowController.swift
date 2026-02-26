@@ -2,17 +2,17 @@ import AppKit
 import SwiftUI
 import EventKit
 
-class SettingsWindowController {
+public class SettingsWindowController {
     private var window: NSWindow?
     private let settingsManager: CalendarSettingsManager
     private let store: EKEventStore
 
-    init(settingsManager: CalendarSettingsManager, store: EKEventStore) {
+    public init(settingsManager: CalendarSettingsManager, store: EKEventStore) {
         self.settingsManager = settingsManager
         self.store = store
     }
 
-    func showWindow() {
+    public func showWindow() {
         if let existing = window {
             existing.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)

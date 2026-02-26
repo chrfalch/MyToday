@@ -1,4 +1,4 @@
-# MenuBarMeetings
+# MyToday
 
 A macOS menu bar app that shows your next meeting and today's schedule at a glance.
 
@@ -14,12 +14,12 @@ A macOS menu bar app that shows your next meeting and today's schedule at a glan
 
 1. **Create a new Xcode project:**
    - File → New → Project → macOS → App
-   - Product Name: `MenuBarMeetings`
+   - Product Name: `MyToday`
    - Interface: SwiftUI
    - Language: Swift
 
 2. **Add the source files** — Replace/add the generated files with:
-   - `MenuBarMeetingsApp.swift`
+   - `MyTodayApp.swift`
    - `EventManager.swift`
    - `ContentView.swift`
 
