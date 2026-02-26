@@ -112,7 +112,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         if eventManager.undatedReminders > 0 {
             let dot = NSAttributedString(string: "  \u{25CF}", attributes: [
-                .foregroundColor: NSColor.systemOrange,
+                .foregroundColor: NSColor.systemYellow,
                 .font: dotFont,
                 .baselineOffset: dotBaseline
             ])
