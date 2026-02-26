@@ -18,7 +18,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var eventManager = EventManager()
     var settingsManager = CalendarSettingsManager()
     var settingsWindowController: SettingsWindowController?
-    var timer: Timer?
+    var timer: Timer?        // 60s — full data refresh
+    var displayTimer: Timer? // 15s — status bar text + urgency color update only
     var cancellables = Set<AnyCancellable>()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -66,9 +67,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             .sink { [weak self] _ in self?.updateStatusBar() }
             .store(in: &cancellables)
 
-        // Refresh every 60 seconds
+        // Full data refresh every 60 seconds
         timer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { _ in
             self.eventManager.refresh()
+        }
+        // Status bar text + urgency color update every 15 seconds
+        // (keeps countdown accurate and catches the ≤5 min / ≤2 min thresholds promptly)
+        displayTimer = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { _ in
             self.updateStatusBar()
         }
     }
@@ -83,10 +88,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         let title = eventManager.statusBarTitle()
         let baseFont = NSFont.menuBarFont(ofSize: 0)
-        let result = NSMutableAttributedString(
-            string: title,
-            attributes: [.font: baseFont]
-        )
+
+        let urgencyColor: NSColor? = {
+            switch eventManager.statusBarUrgency {
+            case .soon:     return NSColor.systemOrange
+            case .imminent: return NSColor.systemRed
+            case .none:     return nil
+            }
+        }()
+
+        var titleAttrs: [NSAttributedString.Key: Any] = [.font: baseFont]
+        if let color = urgencyColor { titleAttrs[.foregroundColor] = color }
+        let result = NSMutableAttributedString(string: title, attributes: titleAttrs)
         // Raise only the leading emoji icon +2pt; leave the rest of the text at baseline
         if !title.isEmpty {
             let emojiRange = (title as NSString).rangeOfComposedCharacterSequence(at: 0)

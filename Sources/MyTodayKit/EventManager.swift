@@ -2,6 +2,12 @@ import Foundation
 import EventKit
 import Combine
 
+public enum StatusBarUrgency {
+    case none      // > 5 mins away
+    case soon      // ≤ 5 mins, > 2 mins → orange
+    case imminent  // ≤ 2 mins or already in progress → red
+}
+
 public enum EventType {
     case meeting  // has attendees/invites
     case place    // has a location but no attendees
@@ -281,6 +287,16 @@ public class EventManager: ObservableObject {
                 self.reminderItems = overdueItems + undatedItems
             }
         }
+    }
+
+    public var statusBarUrgency: StatusBarUrgency {
+        guard let next = nextEvent else { return .none }
+        let now = Date()
+        if next.startDate <= now { return .imminent }  // in progress
+        let mins = next.startDate.timeIntervalSince(now) / 60
+        if mins <= 2 { return .imminent }
+        if mins <= 5 { return .soon }
+        return .none
     }
 
     public func statusBarTitle() -> String {
