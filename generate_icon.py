@@ -238,44 +238,25 @@ def create_icon(size):
         ty = header_center_y - th * 0.75
         draw.text((tx, ty), day_text, fill=(255, 220, 215, 230), font=day_font)
 
-    # ── Big date number in body ──────────────────────────────────────────────
+    # ── Schedule preview bars ────────────────────────────────────────────────
     body_top = cal_y0 + header_h
     body_h = cal_y1 - body_top
 
-    # Compute today's day number
-    import datetime
-    today = datetime.date.today()
-    day_str = str(today.day)
-
-    date_area_h = body_h * 0.46
-    date_font_size = max(10, int(date_area_h * 0.75))
-    date_font = get_font(date_font_size, bold=True)
-
-    bbox = draw.textbbox((0, 0), day_str, font=date_font)
-    tw = bbox[2] - bbox[0]
-    th = bbox[3] - bbox[1]
-    tx = (cal_x0 + cal_x1) / 2 - tw / 2
-    ty = body_top + (date_area_h - th) / 2
-
-    # Subtle shadow for date number
-    draw.text((tx + s*0.004, ty + s*0.004), day_str,
-              fill=(180, 180, 180, 120), font=date_font)
-    draw.text((tx, ty), day_str, fill=(50, 50, 60, 255), font=date_font)
-
-    # ── Schedule preview bars ────────────────────────────────────────────────
-    bars_top = body_top + date_area_h + body_h * 0.04
-    bars_bottom = cal_y1 - body_h * 0.05
+    bars_top = body_top + body_h * 0.07
+    bars_bottom = cal_y1 - body_h * 0.07
     bars_left = cal_x0 + cal_w * 0.07
     bars_right = cal_x1 - cal_w * 0.07
 
     bars = [
         {"color": (52, 120, 246), "width_frac": 1.0},    # blue  (now)
-        {"color": (255, 149,   0), "width_frac": 0.82},  # orange
-        {"color": (52, 199,  89), "width_frac": 0.65},   # green
+        {"color": (255, 149,   0), "width_frac": 0.85},  # orange
+        {"color": (52, 199,  89), "width_frac": 0.70},   # green
+        {"color": (175,  82, 222), "width_frac": 0.90},  # purple
+        {"color": (255,  59,  48), "width_frac": 0.60},  # red
     ]
 
     n = len(bars)
-    bar_h = (bars_bottom - bars_top) / n * 0.62
+    bar_h = (bars_bottom - bars_top) / n * 0.68
     bar_gap = (bars_bottom - bars_top - n * bar_h) / (n + 1)
     bar_r = bar_h * 0.5
 
