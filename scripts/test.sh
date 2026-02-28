@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -uo pipefail
+set -euo pipefail
 cd "$(dirname "$0")/.."
 
 echo "Running tests…"

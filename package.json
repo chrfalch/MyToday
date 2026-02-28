@@ -1,0 +1,21 @@
+{
+  "name": "mytoday",
+  "version": "1.0.0",
+  "description": "Developer scripts for the MyToday macOS app",
+  "private": true,
+  "scripts": {
+    "test": "bash scripts/test.sh",
+    "build": "bash scripts/build.sh",
+
+    "release": "node scripts/release.mjs",
+    "release:dry": "node scripts/release.mjs --dry-run",
+
+    "version:bump": "bash scripts/version.sh --marketing",
+    "archive": "bash scripts/archive.sh",
+    "dmg": "bash scripts/create-dmg.sh",
+    "notarize": "bash scripts/notarize.sh"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -14,7 +14,7 @@ let package = Package(
             swiftSettings: [
                 .swiftLanguageMode(.v5),
                 .enableUpcomingFeature("MemberImportVisibility"),
-                .unsafeFlags(["-default-isolation", "MainActor"]),
+                .defaultIsolation(.mainActor),
             ]
         ),
         .testTarget(
@@ -23,7 +23,7 @@ let package = Package(
             swiftSettings: [
                 .swiftLanguageMode(.v5),
                 .enableUpcomingFeature("MemberImportVisibility"),
-                .unsafeFlags(["-default-isolation", "MainActor"]),
+                .defaultIsolation(.mainActor),
             ]
         ),
     ]

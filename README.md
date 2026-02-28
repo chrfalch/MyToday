@@ -36,6 +36,30 @@ A macOS menu bar app that shows your next meeting and today's schedule at a glan
    - The app will appear in your menu bar
    - macOS will prompt for Calendar and Reminders permissions on first launch
 
+## Building & Testing
+
+```bash
+npm test      # run Swift package tests
+npm run build # development build (Release config, no signing)
+```
+
+## Releasing
+
+Releases are built, notarized, and published to GitHub automatically via
+GitHub Actions. See [RELEASE.md](RELEASE.md) for the full process, one-time
+certificate setup, and required secrets.
+
+```bash
+npm run release          # bump version, tag, push → triggers CI release
+npm run release -- 1.2.3 # specify version explicitly
+```
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full feature development
+workflow — branching, commit conventions, PR guidelines, and how to go from
+a merged feature to a published release.
+
 ## Requirements
 
 - macOS 13.0+
