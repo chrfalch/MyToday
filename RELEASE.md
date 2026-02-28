@@ -40,7 +40,7 @@ certificate type (for distributing outside the App Store).
    ```bash
    base64 -i DeveloperIDApplication.p12 | pbcopy
    ```
-4. Add to GitHub repository secrets:
+4. Add to GitHub repository secrets (**Settings → Secrets and variables → Actions**):
    | Secret name | Value |
    |---|---|
    | `APPLE_CERTIFICATE_BASE64` | the base64 string |
@@ -70,40 +70,137 @@ recommended approach (no 2FA friction, no app-specific passwords).
 
 ---
 
-## Releasing
+## Releasing — step by step
 
-### From the command line (recommended)
+### Step 1 — check what's changed since the last release
 
 ```bash
-# Bump, tag and push in one step — triggers the Release workflow
-npm run release
+# See commits since the last tag
+git log $(git describe --tags --abbrev=0)..HEAD --oneline
 
-# Specify version explicitly
-npm run release -- 1.2.3
-
-# Preview what would happen without making any changes
-npm run release:dry
+# Example output:
+# a3f1c2e feat: show meeting link button in popover
+# 9b2d841 fix: reminder count off by one after midnight
+# 12ee093 chore: update event colour for declined events
 ```
 
-### From GitHub Actions UI
+This tells you what kind of version bump is appropriate (see
+[Versioning convention](#versioning-convention) below).
+
+### Step 2 — preview what will happen (dry run)
+
+```bash
+npm run release:dry
+
+# Output:
+# Releasing MyToday 1.1.0 (tag: v1.1.0) [DRY RUN]
+#
+# 1/4  Bumping version in Info.plist…
+# [dry-run] /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 1.1.0" Info.plist
+# 2/4  Committing version bump…
+# [dry-run] git add Info.plist
+# [dry-run] git commit -m "chore: bump version to 1.1.0"
+# 3/4  Creating tag v1.1.0…
+# [dry-run] git tag -a "v1.1.0" -m "Release v1.1.0"
+# 4/4  Pushing to origin…
+# [dry-run] git push origin HEAD "v1.1.0"
+```
+
+Nothing is modified — use this to confirm the version before committing.
+
+### Step 3 — run the release
+
+```bash
+# Option A: interactive (prompts for the version)
+npm run release
+
+# Current version is 1.0.0. New version (x.y.z): 1.1.0
+
+# Option B: non-interactive
+npm run release -- 1.1.0
+
+# Output:
+# Releasing MyToday 1.1.0 (tag: v1.1.0)
+#
+# 1/4  Bumping version in Info.plist…
+# 2/4  Committing version bump…
+# 3/4  Creating tag v1.1.0…
+# 4/4  Pushing to origin…
+# Done! Tag v1.1.0 pushed.
+# Follow the release at: https://github.com/chrfalch/MyToday/actions
+```
+
+### Step 4 — watch the workflow
+
+Open the link printed above (or go to **Actions → Release** on GitHub).
+The workflow takes ~10 minutes — most of that time is Apple's notarization queue.
+
+```
+✓ Resolve version tag          (a few seconds)
+✓ Select Xcode                 (a few seconds)
+✓ Import signing certificate   (~5s)
+✓ Set version                  (~2s)
+✓ Archive                      (~3 min)
+✓ Create DMG                   (~10s)
+✓ Notarize DMG                 (~5–10 min — Apple's queue varies)
+✓ Generate release notes       (~2s)
+✓ Create GitHub Release        (~5s)
+✓ Cleanup keychain             (~1s)
+```
+
+### Step 5 — verify the release
+
+1. Go to **Releases** on the GitHub repository page.
+2. Confirm the new release appears with `MyToday.dmg` attached.
+3. Download and mount the DMG, then verify Apple accepted the notarization:
+   ```bash
+   spctl --assess --type exec -vv /Volumes/MyToday/MyToday.app
+   # Expected: source=Notarized Developer ID
+   ```
+
+---
+
+## Triggering a release from GitHub Actions UI
+
+If you pushed a tag manually (without using `npm run release`) you can still
+kick off the workflow:
 
 1. Go to **Actions → Release** in the GitHub repository.
-2. Click **Run workflow**.
-3. Enter the tag that already exists in the repo (the tag must have been pushed
-   first, e.g. via `scripts/version.sh --tag`).
+2. Click **Run workflow** (top-right of the workflow list).
+3. Enter the existing tag, e.g. `v1.1.0`.
+4. Click **Run workflow**.
+
+> The tag **must already exist** in the repo before using this path.
+> Use `scripts/version.sh --marketing 1.1.0 --tag` to create + push it without
+> `npm run release`.
 
 ---
 
 ## Individual scripts
 
-| Script | Purpose |
+These are used by the workflow but can also be run locally for debugging.
+
+| Script | What it does |
 |---|---|
-| `scripts/version.sh` | Set `CFBundleShortVersionString` / `CFBundleVersion` in `Info.plist` |
-| `scripts/archive.sh` | `xcodebuild archive` + `exportArchive` with Developer ID signing |
-| `scripts/create-dmg.sh` | Package `build/export/MyToday.app` into a DMG |
-| `scripts/notarize.sh` | Submit to Apple notarization via `xcrun notarytool` and staple |
-| `scripts/build.sh` | Quick development build (not for distribution) |
-| `scripts/test.sh` | Run Swift package tests |
+| `scripts/version.sh` | Updates `CFBundleShortVersionString` / `CFBundleVersion` in `Info.plist` |
+| `scripts/archive.sh` | Runs `xcodebuild archive` + `exportArchive` with Developer ID signing |
+| `scripts/create-dmg.sh` | Packages `build/export/MyToday.app` into a compressed DMG |
+| `scripts/notarize.sh` | Submits to Apple notarization via `xcrun notarytool`, then staples |
+| `scripts/build.sh` | Quick local build — no signing, not for distribution |
+| `scripts/test.sh` | Runs the Swift package test suite |
+
+**Example: build the DMG locally to test packaging**
+
+```bash
+# 1. Build a signed archive (requires your Developer ID cert in your keychain)
+bash scripts/archive.sh
+
+# 2. Package it
+bash scripts/create-dmg.sh MyToday-test.dmg
+
+# 3. Open it
+open build/MyToday-test.dmg
+```
 
 ---
 
@@ -111,13 +208,13 @@ npm run release:dry
 
 Versions follow **semver** (`MAJOR.MINOR.PATCH`):
 
-| Change | Bump |
-|---|---|
-| Breaking / major new feature | MAJOR |
-| New feature, backwards-compatible | MINOR |
-| Bug fix | PATCH |
+| Change | Bump | Example |
+|---|---|---|
+| Breaking change or big redesign | MAJOR | `1.0.0 → 2.0.0` |
+| New user-visible feature | MINOR | `1.0.0 → 1.1.0` |
+| Bug fix or small tweak | PATCH | `1.0.0 → 1.0.1` |
 
-Git tags use the `v` prefix: `v1.0.0`, `v1.2.3`, etc.
+Git tags use the `v` prefix: `v1.0.0`, `v1.1.0`, `v1.0.1`, etc.
 
 ---
 
@@ -128,19 +225,15 @@ Each GitHub Release contains:
 - **`MyToday.dmg`** — notarized, Developer-ID–signed macOS disk image with a
   drag-to-Applications installer layout.
 
-Users can verify the notarization themselves:
-```bash
-spctl --assess --type exec -vv /Volumes/MyToday/MyToday.app
-```
-
 ---
 
 ## Troubleshooting
 
 | Problem | Solution |
 |---|---|
-| `errSecInternalComponent` during import | Ensure the certificate password is correct in `APPLE_CERTIFICATE_PASSWORD` |
-| Notarization rejected (invalid signature) | Check that hardened runtime is enabled in Xcode entitlements |
-| `xcrun notarytool` timeout | Increase `--timeout` in `scripts/notarize.sh`; Apple can be slow |
-| DMG not created | Confirm `build/export/MyToday.app` exists; run `scripts/archive.sh` first |
-| Tag already exists | Delete the tag locally and remotely before re-releasing the same version |
+| `errSecInternalComponent` during import | Certificate password is wrong — check `APPLE_CERTIFICATE_PASSWORD` secret |
+| Notarization rejected (invalid signature) | Hardened Runtime must be enabled in Xcode entitlements |
+| `xcrun notarytool` timeout | Increase `--timeout` in `scripts/notarize.sh`; Apple's queue can be slow |
+| DMG not created | `build/export/MyToday.app` missing — run `scripts/archive.sh` first |
+| Tag already exists | `git tag -d vX.Y.Z && git push origin :refs/tags/vX.Y.Z` then re-release |
+| Workflow doesn't trigger | Confirm the tag matches `v[0-9]+.[0-9]+.[0-9]+` — letters in the tag won't match |

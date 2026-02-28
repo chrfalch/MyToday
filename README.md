@@ -54,6 +54,12 @@ npm run release          # bump version, tag, push → triggers CI release
 npm run release -- 1.2.3 # specify version explicitly
 ```
 
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full feature development
+workflow — branching, commit conventions, PR guidelines, and how to go from
+a merged feature to a published release.
+
 ## Requirements
 
 - macOS 13.0+
