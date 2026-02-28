@@ -227,17 +227,6 @@ def create_icon(size):
     # ── Header text: day abbreviation ────────────────────────────────────────
     header_center_y = cal_y0 + header_h * 0.45
 
-    if size >= 32:
-        day_font_size = max(8, int(header_h * 0.28))
-        day_font = get_font(day_font_size, bold=False)
-        day_text = "TODAY"
-        bbox = draw.textbbox((0, 0), day_text, font=day_font)
-        tw = bbox[2] - bbox[0]
-        th = bbox[3] - bbox[1]
-        tx = (cal_x0 + cal_x1) / 2 - tw / 2
-        ty = header_center_y - th * 0.75
-        draw.text((tx, ty), day_text, fill=(255, 220, 215, 230), font=day_font)
-
     # ── Schedule preview bars ────────────────────────────────────────────────
     body_top = cal_y0 + header_h
     body_h = cal_y1 - body_top
@@ -248,7 +237,6 @@ def create_icon(size):
     bars_right = cal_x1 - cal_w * 0.07
 
     bars = [
-        {"color": (52, 120, 246), "width_frac": 1.0},    # blue  (now)
         {"color": (255, 149,   0), "width_frac": 0.85},  # orange
         {"color": (52, 199,  89), "width_frac": 0.70},   # green
         {"color": (175,  82, 222), "width_frac": 0.90},  # purple
