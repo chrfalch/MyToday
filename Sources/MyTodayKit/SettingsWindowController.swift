@@ -24,7 +24,7 @@ public class SettingsWindowController {
 
         let win = NSWindow(contentViewController: hostingController)
         win.title = "MyToday Settings"
-        win.styleMask = [.titled, .closable, .resizable]
+        win.styleMask = [.titled, .closable]
         win.isReleasedWhenClosed = false
         win.setFrameAutosaveName("MyTodaySettings")
         win.center()
