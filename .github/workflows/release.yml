@@ -1,0 +1,153 @@
+name: Release
+
+on:
+  # Triggered by pushing a version tag (e.g. v1.2.3)
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+
+  # Also triggerable manually for a dry-run / forced release
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Version tag to release (e.g. v1.2.3) — tag must already exist"
+        required: true
+
+env:
+  SCHEME: MyToday
+  PROJECT: MyToday.xcodeproj
+  BUNDLE_ID: org.chrfalch.MyToday
+  TEAM_ID: U994QZ347N
+  ARCHIVE_PATH: build/MyToday.xcarchive
+  EXPORT_PATH: build/export
+  DMG_NAME: MyToday.dmg
+
+jobs:
+  release:
+    name: Build, Notarize & Release
+    runs-on: macos-15
+
+    steps:
+      # ── 1. Checkout ────────────────────────────────────────────────────────
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # needed for tag history / changelog generation
+
+      - name: Resolve version tag
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ github.event.inputs.tag }}"
+          else
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
+          VERSION="${TAG#v}"
+          echo "tag=$TAG"       >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      # ── 2. Xcode ───────────────────────────────────────────────────────────
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.app
+
+      # ── 3. Import Developer ID certificate ─────────────────────────────────
+      #
+      # Required secrets:
+      #   APPLE_CERTIFICATE_BASE64   – base64-encoded Developer ID Application .p12
+      #   APPLE_CERTIFICATE_PASSWORD – password for the .p12
+      #
+      - name: Import signing certificate
+        env:
+          CERT_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          KEYCHAIN_PATH="$RUNNER_TEMP/signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -hex 16)"
+          CERT_PATH="$RUNNER_TEMP/certificate.p12"
+
+          echo "$CERT_BASE64" | base64 --decode -o "$CERT_PATH"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          security import "$CERT_PATH" \
+            -k "$KEYCHAIN_PATH" \
+            -P "$CERT_PASSWORD" \
+            -T /usr/bin/codesign \
+            -T /usr/bin/security
+
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
+          security set-key-partition-list \
+            -S apple-tool:,apple: \
+            -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+      # ── 4. Set version numbers in project ──────────────────────────────────
+      - name: Set version
+        run: |
+          bash scripts/version.sh \
+            --marketing "${{ steps.version.outputs.version }}" \
+            --build     "${{ github.run_number }}"
+
+      # ── 5. Archive & export ────────────────────────────────────────────────
+      - name: Archive
+        run: bash scripts/archive.sh
+
+      # ── 6. Create DMG ──────────────────────────────────────────────────────
+      - name: Create DMG
+        run: bash scripts/create-dmg.sh "${{ env.DMG_NAME }}"
+
+      # ── 7. Notarize ────────────────────────────────────────────────────────
+      #
+      # Required secrets (App Store Connect API key — recommended approach):
+      #   NOTARY_KEY_ID      – App Store Connect API key ID
+      #   NOTARY_ISSUER_ID   – App Store Connect issuer ID
+      #   NOTARY_KEY_BASE64  – base64-encoded .p8 private key
+      #
+      - name: Notarize DMG
+        run: |
+          KEY_PATH="$RUNNER_TEMP/notary_key.p8"
+          echo "${{ secrets.NOTARY_KEY_BASE64 }}" | base64 --decode -o "$KEY_PATH"
+          bash scripts/notarize.sh \
+            "build/${{ env.DMG_NAME }}" \
+            "${{ secrets.NOTARY_KEY_ID }}" \
+            "${{ secrets.NOTARY_ISSUER_ID }}" \
+            "$KEY_PATH"
+
+      # ── 8. Generate release notes ──────────────────────────────────────────
+      - name: Generate release notes
+        id: notes
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          PREV_TAG="$(git tag --sort=-version:refname | grep -v "$TAG" | head -1)"
+
+          if [ -n "$PREV_TAG" ]; then
+            NOTES="$(git log --pretty=format:'- %s' "$PREV_TAG".."$TAG" -- | head -50)"
+          else
+            NOTES="$(git log --pretty=format:'- %s' "$TAG" -- | head -50)"
+          fi
+
+          # Write multi-line output
+          {
+            echo "notes<<EOF"
+            echo "## What's changed"
+            echo "$NOTES"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      # ── 9. Create GitHub Release ───────────────────────────────────────────
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: MyToday ${{ steps.version.outputs.version }}
+          body: ${{ steps.notes.outputs.notes }}
+          draft: false
+          prerelease: false
+          files: build/${{ env.DMG_NAME }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── 10. Cleanup keychain ───────────────────────────────────────────────
+      - name: Cleanup keychain
+        if: always()
+        run: security delete-keychain "$RUNNER_TEMP/signing.keychain-db" 2>/dev/null || true

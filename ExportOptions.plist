@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Developer ID distribution — for direct download outside the App Store -->
+    <key>method</key>
+    <string>developer-id</string>
+
+    <key>teamID</key>
+    <string>U994QZ347N</string>
+
+    <!-- Notarization requires hardened runtime -->
+    <key>signingStyle</key>
+    <string>automatic</string>
+
+    <key>hardcodedDesignatedRequirements</key>
+    <false/>
+
+    <key>generateAppStoreInformation</key>
+    <false/>
+
+    <!-- Strip Swift symbols to reduce bundle size -->
+    <key>stripSwiftSymbols</key>
+    <true/>
+
+    <!-- Embed notarization ticket after stapling (done separately) -->
+    <key>destination</key>
+    <string>export</string>
+</dict>
+</plist>
