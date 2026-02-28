@@ -231,8 +231,6 @@ def create_icon(size):
     body_top = cal_y0 + header_h
     body_h = cal_y1 - body_top
 
-    bars_top = body_top + body_h * 0.07
-    bars_bottom = cal_y1 - body_h * 0.07
     bars_left = cal_x0 + cal_w * 0.07
     bars_right = cal_x1 - cal_w * 0.07
 
@@ -243,13 +241,15 @@ def create_icon(size):
         {"color": (255,  59,  48), "width_frac": 0.60},  # red
     ]
 
+    # Uniform spacing: (n+1) equal gaps + n bars filling body_h exactly
+    # bar_h = 2.5 * gap  →  (n+1)*gap + n*2.5*gap = body_h
     n = len(bars)
-    bar_h = (bars_bottom - bars_top) / n * 0.68
-    bar_gap = (bars_bottom - bars_top - n * bar_h) / (n + 1)
+    gap = body_h / ((n + 1) + n * 2.5)
+    bar_h = 2.5 * gap
     bar_r = bar_h * 0.5
 
     for i, bar in enumerate(bars):
-        by = bars_top + bar_gap * (i + 1) + bar_h * i
+        by = body_top + gap * (i + 1) + bar_h * i
         bx1 = bars_left + (bars_right - bars_left) * bar["width_frac"]
 
         c = bar["color"]
