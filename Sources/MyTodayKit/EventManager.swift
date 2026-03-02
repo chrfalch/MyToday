@@ -305,20 +305,29 @@ public class EventManager: ObservableObject {
         return .none
     }
 
+    private func truncatedTitle(_ title: String, maxLength: Int = 20) -> String {
+        guard title.count > maxLength else { return title }
+        let half = (maxLength - 1) / 2
+        let start = title.prefix(half)
+        let end = title.suffix(maxLength - 1 - half)
+        return "\(start)…\(end)"
+    }
+
     public func statusBarTitle() -> String {
         guard calendarAccessGranted else { return "📅 No Access" }
         guard let next = nextEvent else { return "📅 No more events" }
+        let title = truncatedTitle(next.title ?? "Event")
         let now = Date()
         let icon = next.eventType.emoji
         if next.startDate <= now && next.endDate > now {
-            return "🟢 \(next.title ?? "Event")"
+            return "🟢 \(title)"
         }
         let mins = Int(next.startDate.timeIntervalSince(now) / 60)
         if mins < 60 {
-            return "\(icon) \(next.title ?? "Event") in \(mins)m"
+            return "\(icon) \(title) in \(mins)m"
         }
         let formatter = DateFormatter()
         formatter.dateFormat = "h:mm a"
-        return "\(icon) \(next.title ?? "Event") at \(formatter.string(from: next.startDate))"
+        return "\(icon) \(title) at \(formatter.string(from: next.startDate))"
     }
 }
