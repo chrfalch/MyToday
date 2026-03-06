@@ -93,10 +93,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if let next {
             result.append(NSAttributedString(
                 string: "  →  \(next)",
-                attributes: [
-                    .font: baseFont,
-                    .foregroundColor: NSColor.secondaryLabelColor
-                ]
+                attributes: [.font: baseFont]
             ))
         }
 
