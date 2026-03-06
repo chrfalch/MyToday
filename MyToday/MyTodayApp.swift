@@ -85,16 +85,27 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let boldFont = NSFont.systemFont(ofSize: baseFont.pointSize, weight: .semibold)
         let (main, next) = eventManager.statusBarComponents()
 
-        let result = NSMutableAttributedString(
-            string: main,
-            attributes: [.font: boldFont]
-        )
+        // If there's no current meeting, the "main" text is the next event title —
+        // prepend its context icon.
+        let now = Date()
+        let hasCurrentMeeting = (eventManager.nextEvent?.startDate ?? .distantFuture) <= now
+            && (eventManager.nextEvent?.endDate ?? .distantPast) > now
+
+        let result = NSMutableAttributedString()
+        if !hasCurrentMeeting, let upcomingEvent = eventManager.nextEvent {
+            result.append(symbolAttachment(for: upcomingEvent, font: boldFont))
+            result.append(NSAttributedString(string: " ", attributes: [.font: boldFont]))
+        }
+        result.append(NSAttributedString(string: main, attributes: [.font: boldFont]))
 
         if let next {
-            result.append(NSAttributedString(
-                string: "  →  \(next)",
-                attributes: [.font: baseFont]
-            ))
+            result.append(NSAttributedString(string: "  →  ", attributes: [.font: baseFont]))
+            // Prepend icon for the following event when a meeting is currently running
+            if hasCurrentMeeting, let following = eventManager.nextUpcomingEvent {
+                result.append(symbolAttachment(for: following, font: baseFont))
+                result.append(NSAttributedString(string: " ", attributes: [.font: baseFont]))
+            }
+            result.append(NSAttributedString(string: next, attributes: [.font: baseFont]))
         }
 
         if eventManager.overdueReminders > 0 {
@@ -110,6 +121,36 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         button.attributedTitle = result
+    }
+
+    /// Returns the appropriate SF Symbol name for an event based on its content.
+    private func symbolName(for event: EKEvent) -> String {
+        let combined = [event.title, event.location, event.notes, event.url?.absoluteString]
+            .compactMap { $0 }.joined(separator: " ").lowercased()
+        let videoKeywords = ["zoom", "teams", "meet", "webex", "whereby", "hangout", "skype", "facetime", "loom"]
+        if videoKeywords.contains(where: { combined.contains($0) }) {
+            return "video"
+        }
+        if let loc = event.location, !loc.trimmingCharacters(in: .whitespaces).isEmpty {
+            return "mappin"
+        }
+        return "calendar"
+    }
+
+    /// Renders an SF Symbol as an NSTextAttachment sized to match `font`.
+    private func symbolAttachment(for event: EKEvent, font: NSFont) -> NSAttributedString {
+        let name = symbolName(for: event)
+        let config = NSImage.SymbolConfiguration(pointSize: font.pointSize * 0.9, weight: .regular)
+        guard let image = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
+                .withSymbolConfiguration(config) else {
+            return NSAttributedString()
+        }
+        let attachment = NSTextAttachment()
+        attachment.image = image
+        let size = image.size
+        attachment.bounds = CGRect(x: 0, y: (font.capHeight - size.height) / 2,
+                                   width: size.width, height: size.height)
+        return NSAttributedString(attachment: attachment)
     }
 
     private func makeBadge(count: Int, color: NSColor, referenceFont: NSFont) -> NSTextAttachment {

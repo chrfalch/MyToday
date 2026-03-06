@@ -210,8 +210,15 @@ public class EventManager: ObservableObject {
         }
     }
 
+    /// The next event that hasn't started yet (used for icon/styling in the status bar).
+    public var nextUpcomingEvent: EKEvent? {
+        let now = Date()
+        return todaysEvents.first(where: { $0.startDate > now })
+    }
+
     /// Returns `(main, next)` where `main` is the primary (bold) label and
-    /// `next` is the secondary (dimmed) label shown after the arrow, or `nil`.
+    /// `next` is the secondary (regular) label shown after the arrow, or `nil`.
+    /// Icons are intentionally omitted from the strings — the caller renders them.
     public func statusBarComponents() -> (main: String, next: String?) {
         guard calendarAccessGranted else { return ("📅 No Access", nil) }
         guard let next = nextEvent else { return ("📅 No more meetings", nil) }
