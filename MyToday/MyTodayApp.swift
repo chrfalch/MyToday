@@ -81,12 +81,24 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func updateStatusBar() {
         guard let button = statusItem?.button else { return }
 
-        let title = eventManager.statusBarTitle()
         let baseFont = NSFont.menuBarFont(ofSize: 0)
+        let boldFont = NSFont.systemFont(ofSize: baseFont.pointSize, weight: .semibold)
+        let (main, next) = eventManager.statusBarComponents()
+
         let result = NSMutableAttributedString(
-            string: title,
-            attributes: [.font: baseFont]
+            string: main,
+            attributes: [.font: boldFont]
         )
+
+        if let next {
+            result.append(NSAttributedString(
+                string: "  →  \(next)",
+                attributes: [
+                    .font: baseFont,
+                    .foregroundColor: NSColor.secondaryLabelColor
+                ]
+            ))
+        }
 
         if eventManager.overdueReminders > 0 {
             result.append(NSAttributedString(string: "  ", attributes: [.font: baseFont]))

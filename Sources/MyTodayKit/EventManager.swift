@@ -210,19 +210,37 @@ public class EventManager: ObservableObject {
         }
     }
 
-    public func statusBarTitle() -> String {
-        guard calendarAccessGranted else { return "📅 No Access" }
-        guard let next = nextEvent else { return "📅 No more meetings" }
+    /// Returns `(main, next)` where `main` is the primary (bold) label and
+    /// `next` is the secondary (dimmed) label shown after the arrow, or `nil`.
+    public func statusBarComponents() -> (main: String, next: String?) {
+        guard calendarAccessGranted else { return ("📅 No Access", nil) }
+        guard let next = nextEvent else { return ("📅 No more meetings", nil) }
         let now = Date()
         if next.startDate <= now && next.endDate > now {
-            return "🟢 \(next.title ?? "Meeting")"
+            let main = "🟢 \(next.title ?? "Meeting")"
+            if let following = todaysEvents.first(where: { $0.startDate > now }) {
+                let ft = following.title ?? "Meeting"
+                return (main, "\(ft)  \(nextEventLabel(for: following, now: now))")
+            }
+            return (main, nil)
         }
-        let mins = Int(next.startDate.timeIntervalSince(now) / 60)
+        // No current meeting — bold the title, dim the time
+        return (next.title ?? "Meeting", nextEventLabel(for: next, now: now))
+    }
+
+    private func nextEventLabel(for event: EKEvent, now: Date) -> String {
+        let mins = Int(event.startDate.timeIntervalSince(now) / 60)
         if mins < 60 {
-            return "\(next.title ?? "Meeting")  –  in \(mins)m"
+            return "in \(mins)m"
         }
         let formatter = DateFormatter()
         formatter.dateFormat = "h:mm"
-        return "\(next.title ?? "Meeting")  –  \(formatter.string(from: next.startDate))"
+        return formatter.string(from: event.startDate)
+    }
+
+    public func statusBarTitle() -> String {
+        let (main, next) = statusBarComponents()
+        guard let next else { return main }
+        return "\(main)  →  \(next)"
     }
 }
