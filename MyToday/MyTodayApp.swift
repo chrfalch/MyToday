@@ -88,34 +88,55 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             attributes: [.font: baseFont]
         )
 
-        let dotFont = NSFont.systemFont(ofSize: 8)
-        let countFont = NSFont.monospacedDigitSystemFont(ofSize: baseFont.pointSize, weight: .medium)
-
         if eventManager.overdueReminders > 0 {
-            let dot = NSAttributedString(string: "  \u{25CF}", attributes: [
-                .foregroundColor: NSColor.systemRed,
-                .font: dotFont
-            ])
-            let count = NSAttributedString(string: " \(eventManager.overdueReminders)", attributes: [
-                .font: countFont
-            ])
-            result.append(dot)
-            result.append(count)
+            result.append(NSAttributedString(string: "  ", attributes: [.font: baseFont]))
+            let badge = makeBadge(count: eventManager.overdueReminders, color: .systemRed, referenceFont: baseFont)
+            result.append(NSAttributedString(attachment: badge))
         }
 
         if eventManager.undatedReminders > 0 {
-            let dot = NSAttributedString(string: "  \u{25CF}", attributes: [
-                .foregroundColor: NSColor.systemOrange,
-                .font: dotFont
-            ])
-            let count = NSAttributedString(string: " \(eventManager.undatedReminders)", attributes: [
-                .font: countFont
-            ])
-            result.append(dot)
-            result.append(count)
+            result.append(NSAttributedString(string: "  ", attributes: [.font: baseFont]))
+            let badge = makeBadge(count: eventManager.undatedReminders, color: .systemOrange, referenceFont: baseFont)
+            result.append(NSAttributedString(attachment: badge))
         }
 
         button.attributedTitle = result
+    }
+
+    private func makeBadge(count: Int, color: NSColor, referenceFont: NSFont) -> NSTextAttachment {
+        let label = count > 9 ? "+9" : "\(count)"
+        let fontSize = max(referenceFont.pointSize * 0.68, 9)
+        let badgeFont = NSFont.systemFont(ofSize: fontSize, weight: .bold)
+
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: badgeFont,
+            .foregroundColor: NSColor.white
+        ]
+        let textSize = (label as NSString).size(withAttributes: attrs)
+
+        let padding: CGFloat = 3.5
+        let height = textSize.height + padding
+        let width = max(height, textSize.width + padding * 2)
+
+        let image = NSImage(size: NSSize(width: width, height: height), flipped: false) { rect in
+            color.setFill()
+            NSBezierPath(roundedRect: rect, xRadius: height / 2, yRadius: height / 2).fill()
+            let textRect = NSRect(
+                x: (width - textSize.width) / 2,
+                y: (height - textSize.height) / 2,
+                width: textSize.width,
+                height: textSize.height
+            )
+            (label as NSString).draw(in: textRect, withAttributes: attrs)
+            return true
+        }
+        image.isTemplate = false
+
+        let attachment = NSTextAttachment()
+        attachment.image = image
+        let yOffset = (referenceFont.capHeight - height) / 2
+        attachment.bounds = CGRect(x: 0, y: yOffset, width: width, height: height)
+        return attachment
     }
 
     @objc func togglePopover(_ sender: AnyObject?) {

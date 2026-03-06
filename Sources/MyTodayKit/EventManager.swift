@@ -219,10 +219,10 @@ public class EventManager: ObservableObject {
         }
         let mins = Int(next.startDate.timeIntervalSince(now) / 60)
         if mins < 60 {
-            return "📅 \(next.title ?? "Meeting") in \(mins)m"
+            return "\(next.title ?? "Meeting")  –  in \(mins)m"
         }
         let formatter = DateFormatter()
-        formatter.dateFormat = "h:mm a"
-        return "📅 \(next.title ?? "Meeting") at \(formatter.string(from: next.startDate))"
+        formatter.dateFormat = "h:mm"
+        return "\(next.title ?? "Meeting")  –  \(formatter.string(from: next.startDate))"
     }
 }
