@@ -11,14 +11,6 @@ public struct PopoverContentView: View {
         self.onOpenSettings = onOpenSettings
     }
 
-    private var showGroupHeaders: Bool {
-        let groups = eventManager.groupedEvents
-        if groups.count == 1 && groups.first?.groupName == "Today" {
-            return false
-        }
-        return groups.count > 1 || (groups.count == 1 && groups.first?.groupName != "Today")
-    }
-
     public var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Header
@@ -72,15 +64,6 @@ public struct PopoverContentView: View {
                         .padding()
                     } else {
                         ForEach(eventManager.groupedEvents) { group in
-                            if showGroupHeaders {
-                                Text(group.groupName.uppercased())
-                                    .font(.caption2)
-                                    .fontWeight(.semibold)
-                                    .foregroundColor(.secondary)
-                                    .padding(.horizontal, 16)
-                                    .padding(.top, 10)
-                                    .padding(.bottom, 4)
-                            }
                             ForEach(group.events, id: \.eventIdentifier) { event in
                                 EventRowView(event: event)
                                 Divider().padding(.leading, 16)
