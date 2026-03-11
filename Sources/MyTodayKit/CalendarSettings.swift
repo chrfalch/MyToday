@@ -2,37 +2,21 @@ import Foundation
 import EventKit
 import Combine
 
-public struct CalendarGroup: Codable, Identifiable {
-    public var id: UUID
-    public var name: String
-    public var sortOrder: Int
-
-    public init(id: UUID, name: String, sortOrder: Int) {
-        self.id = id
-        self.name = name
-        self.sortOrder = sortOrder
-    }
-}
-
 public struct CalendarAssignment: Codable, Identifiable {
     public var id: String // EKCalendar.calendarIdentifier
     public var isVisible: Bool
-    public var groupID: UUID?
 
-    public init(id: String, isVisible: Bool, groupID: UUID?) {
+    public init(id: String, isVisible: Bool) {
         self.id = id
         self.isVisible = isVisible
-        self.groupID = groupID
     }
 }
 
 public struct CalendarSettingsData: Codable {
-    public var groups: [CalendarGroup] = []
     public var assignments: [CalendarAssignment] = []
     public var reminderAssignments: [CalendarAssignment] = []
 
-    public init(groups: [CalendarGroup] = [], assignments: [CalendarAssignment] = [], reminderAssignments: [CalendarAssignment] = []) {
-        self.groups = groups
+    public init(assignments: [CalendarAssignment] = [], reminderAssignments: [CalendarAssignment] = []) {
         self.assignments = assignments
         self.reminderAssignments = reminderAssignments
     }
@@ -60,35 +44,11 @@ public class CalendarSettingsManager: ObservableObject {
         }
     }
 
-    // MARK: - Group mutations
-
-    func addGroup(name: String) {
-        let maxOrder = data.groups.map(\.sortOrder).max() ?? -1
-        let group = CalendarGroup(id: UUID(), name: name, sortOrder: maxOrder + 1)
-        data.groups.append(group)
-    }
-
-    func deleteGroup(id: UUID) {
-        data.groups.removeAll { $0.id == id }
-        for i in data.assignments.indices where data.assignments[i].groupID == id {
-            data.assignments[i].groupID = nil
-        }
-        for i in data.reminderAssignments.indices where data.reminderAssignments[i].groupID == id {
-            data.reminderAssignments[i].groupID = nil
-        }
-    }
-
     // MARK: - Assignment mutations
 
     func setVisibility(calendarID: String, visible: Bool) {
         if let idx = data.assignments.firstIndex(where: { $0.id == calendarID }) {
             data.assignments[idx].isVisible = visible
-        }
-    }
-
-    func setGroup(calendarID: String, groupID: UUID?) {
-        if let idx = data.assignments.firstIndex(where: { $0.id == calendarID }) {
-            data.assignments[idx].groupID = groupID
         }
     }
 
@@ -100,12 +60,6 @@ public class CalendarSettingsManager: ObservableObject {
         }
     }
 
-    func setReminderGroup(calendarID: String, groupID: UUID?) {
-        if let idx = data.reminderAssignments.firstIndex(where: { $0.id == calendarID }) {
-            data.reminderAssignments[idx].groupID = groupID
-        }
-    }
-
     // MARK: - Sync with system calendars
 
     func syncWithSystemCalendars(_ calendars: [EKCalendar]) {
@@ -113,7 +67,7 @@ public class CalendarSettingsManager: ObservableObject {
         for cal in calendars {
             if !existingIDs.contains(cal.calendarIdentifier) {
                 data.assignments.append(
-                    CalendarAssignment(id: cal.calendarIdentifier, isVisible: true, groupID: nil)
+                    CalendarAssignment(id: cal.calendarIdentifier, isVisible: true)
                 )
             }
         }
@@ -126,7 +80,7 @@ public class CalendarSettingsManager: ObservableObject {
         for cal in calendars {
             if !existingIDs.contains(cal.calendarIdentifier) {
                 data.reminderAssignments.append(
-                    CalendarAssignment(id: cal.calendarIdentifier, isVisible: true, groupID: nil)
+                    CalendarAssignment(id: cal.calendarIdentifier, isVisible: true)
                 )
             }
         }

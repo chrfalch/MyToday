@@ -198,41 +198,8 @@ public class EventManager: ObservableObject {
     }
 
     private func buildGroupedEvents(from events: [EKEvent]) {
-        guard let settings = settingsManager else {
-            groupedEvents = [GroupedEvents(id: nil, groupName: "Today", events: events)]
-            sortedEvents = events.map { EventWithGroup(event: $0, groupName: nil) }
-            return
-        }
-
-        let groups = settings.data.groups.sorted { $0.sortOrder < $1.sortOrder }
-        let assignmentsByCalID = Dictionary(uniqueKeysWithValues: settings.data.assignments.map { ($0.id, $0) })
-
-        var buckets: [UUID?: [EKEvent]] = [:]
-        for event in events {
-            let calID = event.calendar.calendarIdentifier
-            let groupID = assignmentsByCalID[calID]?.groupID
-            buckets[groupID, default: []].append(event)
-        }
-
-        var result: [GroupedEvents] = []
-        for group in groups {
-            if let groupEvents = buckets[group.id], !groupEvents.isEmpty {
-                result.append(GroupedEvents(id: group.id, groupName: group.name, events: groupEvents))
-            }
-        }
-        if let ungrouped = buckets[nil], !ungrouped.isEmpty {
-            let name = groups.isEmpty ? "Today" : "Other"
-            result.append(GroupedEvents(id: nil, groupName: name, events: ungrouped))
-        }
-
-        groupedEvents = result
-
-        let showGroupName = result.count > 1 || (result.count == 1 && result.first?.groupName != "Today")
-        sortedEvents = result
-            .flatMap { group in
-                group.events.map { EventWithGroup(event: $0, groupName: showGroupName ? group.groupName : nil) }
-            }
-            .sorted { $0.event.startDate < $1.event.startDate }
+        groupedEvents = [GroupedEvents(id: nil, groupName: "Today", events: events)]
+        sortedEvents = events.map { EventWithGroup(event: $0, groupName: nil) }
     }
 
     func fetchReminders() {
