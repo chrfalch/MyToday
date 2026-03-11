@@ -12,13 +12,14 @@ struct MyTodayApp: App {
     }
 }
 
-class AppDelegate: NSObject, NSApplicationDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     var statusItem: NSStatusItem?
     var popover: NSPopover?
     var eventManager = EventManager()
     var settingsManager = CalendarSettingsManager()
     var settingsWindowController: SettingsWindowController?
-    var timer: Timer?
+    var timer: Timer?        // 60s — full data refresh
+    var displayTimer: Timer? // 15s — status bar text + urgency color update only
     var cancellables = Set<AnyCancellable>()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -33,11 +34,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let popover = NSPopover()
         popover.contentSize = NSSize(width: 340, height: 400)
         popover.behavior = .transient
+        popover.delegate = self
         popover.contentViewController = NSHostingController(
             rootView: PopoverContentView(
                 eventManager: eventManager,
                 onOpenSettings: { [weak self] in self?.openSettings() }
             )
+            .environmentObject(eventManager)
         )
         self.popover = popover
 
@@ -66,9 +69,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             .sink { [weak self] _ in self?.updateStatusBar() }
             .store(in: &cancellables)
 
-        // Refresh every 60 seconds
+        // Full data refresh every 60 seconds
         timer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { _ in
             self.eventManager.refresh()
+        }
+        // Status bar text + urgency color update every 15 seconds
+        // (keeps countdown accurate and catches the ≤5 min / ≤2 min thresholds promptly)
+        displayTimer = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { _ in
             self.updateStatusBar()
         }
     }
@@ -78,115 +85,111 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         settingsWindowController?.showWindow()
     }
 
+    /// Per-emoji baseline offset for the menu bar font.
+    /// Geometric/filled shapes (🟢) render centred in the em-square and need no lift.
+    /// Pictograph emojis (👥 📍 📋 📅) sit slightly low and need +2pt.
+    /// Add new cases here whenever a new emoji is introduced to the status bar.
+    private func menuBarEmojiOffset(for scalar: Unicode.Scalar) -> CGFloat {
+        switch scalar.value {
+        case 0x1F7E2: return 0.0   // 🟢  large green circle — geometric, already centred
+        default:       return 2.0   // pictographs sit low, lift +2pt
+        }
+    }
+
+    /// Walks all leading non-ASCII characters (skipping spaces) in `str` and applies
+    /// the per-emoji baseline offset, stopping at the first ASCII character.
+    private func applyLeadingEmojiOffsets(to str: NSMutableAttributedString) {
+        let ns = str.string as NSString
+        var pos = 0
+        while pos < ns.length {
+            let range = ns.rangeOfComposedCharacterSequence(at: pos)
+            let substr = ns.substring(with: range)
+            if substr == " " { pos += 1; continue }
+            guard let scalar = substr.unicodeScalars.first, scalar.value > 0x007F else { break }
+            let offset = menuBarEmojiOffset(for: scalar)
+            if offset != 0 { str.addAttribute(.baselineOffset, value: offset, range: range) }
+            pos = range.location + range.length
+        }
+    }
+
     func updateStatusBar() {
         guard let button = statusItem?.button else { return }
+        eventManager.currentDate = Date()   // keep popover rows in sync
 
+        let title = eventManager.statusBarTitle()
         let baseFont = NSFont.menuBarFont(ofSize: 0)
-        let boldFont = NSFont.systemFont(ofSize: baseFont.pointSize, weight: .semibold)
-        let (main, next) = eventManager.statusBarComponents()
 
-        // If there's no current meeting, the "main" text is the next event title —
-        // prepend its context icon.
-        let now = Date()
-        let hasCurrentMeeting = (eventManager.nextEvent?.startDate ?? .distantFuture) <= now
-            && (eventManager.nextEvent?.endDate ?? .distantPast) > now
-
-        let result = NSMutableAttributedString()
-        if !hasCurrentMeeting, let upcomingEvent = eventManager.nextEvent {
-            result.append(symbolAttachment(for: upcomingEvent, font: boldFont))
-            result.append(NSAttributedString(string: " ", attributes: [.font: boldFont]))
-        }
-        result.append(NSAttributedString(string: main, attributes: [.font: boldFont]))
-
-        if let next {
-            result.append(NSAttributedString(string: "  →  ", attributes: [.font: baseFont]))
-            // Prepend icon for the following event when a meeting is currently running
-            if hasCurrentMeeting, let following = eventManager.nextUpcomingEvent {
-                result.append(symbolAttachment(for: following, font: baseFont))
-                result.append(NSAttributedString(string: " ", attributes: [.font: baseFont]))
+        let urgencyColor: NSColor? = {
+            switch eventManager.statusBarUrgency {
+            case .soon:     return NSColor.systemOrange
+            case .imminent: return NSColor.systemRed
+            case .none:     return nil
             }
-            result.append(NSAttributedString(string: next, attributes: [.font: baseFont]))
+        }()
+
+        var titleAttrs: [NSAttributedString.Key: Any] = [.font: baseFont]
+        if let color = urgencyColor { titleAttrs[.foregroundColor] = color }
+        let result = NSMutableAttributedString(string: title, attributes: titleAttrs)
+        applyLeadingEmojiOffsets(to: result)
+
+        // If in a current event, show the next upcoming event (≤30 min) dimmed after it
+        let now = Date()
+        if let current = eventManager.nextEvent, current.startDate <= now, current.endDate > now {
+            if let nextItem = eventManager.sortedEvents.first(where: { $0.event.startDate > now }) {
+                let mins = Int(nextItem.event.startDate.timeIntervalSince(now) / 60)
+                if mins <= 30 {
+                    let icon = nextItem.event.eventType.emoji
+                    var nextTitle = nextItem.event.title ?? "Event"
+                    if nextTitle.count > 14 { nextTitle = String(nextTitle.prefix(14)) + "…" }
+                    let dimColor = NSColor.secondaryLabelColor
+                    // Build the next-event segment starting with the emoji so the shared
+                    // applyLeadingEmojiOffsets helper can handle the offset correctly.
+                    let nextCore = NSMutableAttributedString(
+                        string: "\(icon) \(nextTitle) in \(mins)m",
+                        attributes: [.font: baseFont, .foregroundColor: dimColor]
+                    )
+                    applyLeadingEmojiOffsets(to: nextCore)
+                    let spaces = NSAttributedString(
+                        string: "  ",
+                        attributes: [.font: baseFont, .foregroundColor: dimColor]
+                    )
+                    result.append(spaces)
+                    result.append(nextCore)
+                }
+            }
         }
+
+        let dotFont = NSFont.systemFont(ofSize: 8)
+        let dotBaseline = (baseFont.pointSize - dotFont.pointSize) / 2 - 1
+        let countFont = NSFont.monospacedDigitSystemFont(ofSize: baseFont.pointSize, weight: .medium)
 
         if eventManager.overdueReminders > 0 {
-            result.append(NSAttributedString(string: "  ", attributes: [.font: baseFont]))
-            let badge = makeBadge(count: eventManager.overdueReminders, color: .systemRed, referenceFont: baseFont)
-            result.append(NSAttributedString(attachment: badge))
+            let dot = NSAttributedString(string: "  \u{25CF}", attributes: [
+                .foregroundColor: NSColor.systemRed,
+                .font: dotFont,
+                .baselineOffset: dotBaseline
+            ])
+            let count = NSAttributedString(string: " \(eventManager.overdueReminders)", attributes: [
+                .font: countFont
+            ])
+            result.append(dot)
+            result.append(count)
         }
 
         if eventManager.undatedReminders > 0 {
-            result.append(NSAttributedString(string: "  ", attributes: [.font: baseFont]))
-            let badge = makeBadge(count: eventManager.undatedReminders, color: .systemOrange, referenceFont: baseFont)
-            result.append(NSAttributedString(attachment: badge))
+            let dot = NSAttributedString(string: "  \u{25CF}", attributes: [
+                .foregroundColor: NSColor.systemYellow,
+                .font: dotFont,
+                .baselineOffset: dotBaseline
+            ])
+            let count = NSAttributedString(string: " \(eventManager.undatedReminders)", attributes: [
+                .font: countFont
+            ])
+            result.append(dot)
+            result.append(count)
         }
 
         button.attributedTitle = result
-    }
-
-    /// Returns the appropriate SF Symbol name for an event based on its content.
-    private func symbolName(for event: EKEvent) -> String {
-        let combined = [event.title, event.location, event.notes, event.url?.absoluteString]
-            .compactMap { $0 }.joined(separator: " ").lowercased()
-        let videoKeywords = ["zoom", "teams", "meet", "webex", "whereby", "hangout", "skype", "facetime", "loom"]
-        if videoKeywords.contains(where: { combined.contains($0) }) {
-            return "video"
-        }
-        if let loc = event.location, !loc.trimmingCharacters(in: .whitespaces).isEmpty {
-            return "mappin"
-        }
-        return "calendar"
-    }
-
-    /// Renders an SF Symbol as an NSTextAttachment sized to match `font`.
-    private func symbolAttachment(for event: EKEvent, font: NSFont) -> NSAttributedString {
-        let name = symbolName(for: event)
-        let config = NSImage.SymbolConfiguration(pointSize: font.pointSize * 0.9, weight: .regular)
-        guard let image = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
-                .withSymbolConfiguration(config) else {
-            return NSAttributedString()
-        }
-        let attachment = NSTextAttachment()
-        attachment.image = image
-        let size = image.size
-        attachment.bounds = CGRect(x: 0, y: (font.capHeight - size.height) / 2,
-                                   width: size.width, height: size.height)
-        return NSAttributedString(attachment: attachment)
-    }
-
-    private func makeBadge(count: Int, color: NSColor, referenceFont: NSFont) -> NSTextAttachment {
-        let label = count > 9 ? "+9" : "\(count)"
-        let fontSize = max(referenceFont.pointSize * 0.68, 9)
-        let badgeFont = NSFont.systemFont(ofSize: fontSize, weight: .bold)
-
-        let attrs: [NSAttributedString.Key: Any] = [
-            .font: badgeFont,
-            .foregroundColor: NSColor.white
-        ]
-        let textSize = (label as NSString).size(withAttributes: attrs)
-
-        let padding: CGFloat = 3.5
-        let height = textSize.height + padding
-        let width = max(height, textSize.width + padding * 2)
-
-        let image = NSImage(size: NSSize(width: width, height: height), flipped: false) { rect in
-            color.setFill()
-            NSBezierPath(roundedRect: rect, xRadius: height / 2, yRadius: height / 2).fill()
-            let textRect = NSRect(
-                x: (width - textSize.width) / 2,
-                y: (height - textSize.height) / 2,
-                width: textSize.width,
-                height: textSize.height
-            )
-            (label as NSString).draw(in: textRect, withAttributes: attrs)
-            return true
-        }
-        image.isTemplate = false
-
-        let attachment = NSTextAttachment()
-        attachment.image = image
-        let yOffset = (referenceFont.capHeight - height) / 2
-        attachment.bounds = CGRect(x: 0, y: yOffset, width: width, height: height)
-        return attachment
     }
 
     @objc func togglePopover(_ sender: AnyObject?) {
@@ -199,5 +202,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             popover?.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             NSApp.activate(ignoringOtherApps: true)
         }
+    }
+
+    // Fired by NSPopover after the popover has fully appeared and laid out
+    func popoverDidShow(_ notification: Notification) {
+        eventManager.scrollToCurrentEvent.send()
     }
 }

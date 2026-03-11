@@ -2,6 +2,54 @@ import Foundation
 import EventKit
 import Combine
 
+public enum StatusBarUrgency {
+    case none      // > 5 mins away
+    case soon      // ≤ 5 mins, > 2 mins → orange
+    case imminent  // ≤ 2 mins or already in progress → red
+}
+
+public enum EventType {
+    case meeting  // has attendees/invites
+    case place    // has a location but no attendees
+    case task     // no attendees, no location
+
+    public var sfSymbol: String {
+        switch self {
+        case .meeting: return "person.2.fill"
+        case .place:   return "mappin.fill"
+        case .task:    return "checklist"
+        }
+    }
+
+    public var emoji: String {
+        switch self {
+        case .meeting: return "👥"
+        case .place:   return "📍"
+        case .task:    return "📋"
+        }
+    }
+}
+
+extension EKEvent {
+    public var eventType: EventType {
+        let hasAttendees = attendees.map { !$0.isEmpty } ?? false
+        let hasLocation = location.map { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty } ?? false
+        if hasAttendees { return .meeting }
+        if hasLocation  { return .place }
+        return .task
+    }
+}
+
+public struct EventWithGroup {
+    public var event: EKEvent
+    public var groupName: String?
+
+    public init(event: EKEvent, groupName: String?) {
+        self.event = event
+        self.groupName = groupName
+    }
+}
+
 public struct GroupedEvents: Identifiable {
     public var id: UUID?
     public var groupName: String
@@ -35,14 +83,23 @@ public struct ReminderListSummary: Identifiable {
 public class EventManager: ObservableObject {
     public let store = EKEventStore()
 
+    /// Fired just before the popover is shown — ContentView observes this to scroll to the current event.
+    public let scrollToCurrentEvent = PassthroughSubject<Void, Never>()
+
     @Published public var todaysEvents: [EKEvent] = []
+    @Published public var pastTaskEvents: [EKEvent] = []
     @Published public var groupedEvents: [GroupedEvents] = []
+    @Published public var sortedEvents: [EventWithGroup] = []
     @Published public var nextEvent: EKEvent? = nil
     @Published public private(set) var overdueReminders: Int = 0
     @Published public private(set) var undatedReminders: Int = 0
     @Published public var reminderListSummaries: [ReminderListSummary] = []
+    @Published public var reminderItems: [EKReminder] = []
     @Published public var calendarAccessGranted = false
     @Published public var reminderAccessGranted = false
+    /// Ticked by the AppDelegate display timer (every 15s) so all popover rows
+    /// share the same source-of-truth "now" instead of each running their own timer.
+    @Published public var currentDate: Date = Date()
 
     public var settingsManager: CalendarSettingsManager? {
         didSet { subscribeToSettings() }
@@ -118,25 +175,31 @@ public class EventManager: ObservableObject {
         settingsManager?.syncWithSystemCalendars(systemCalendars)
 
         let now = Date()
+        let startOfDay = Calendar.current.startOfDay(for: now)
         let endOfDay = Calendar.current.date(bySettingHour: 23, minute: 59, second: 59, of: now)!
 
         // Use visible calendars from settings if available, otherwise nil (all)
         let calendars: [EKCalendar]? = settingsManager?.visibleCalendars(from: store)
 
-        let predicate = store.predicateForEvents(withStart: now, end: endOfDay, calendars: calendars)
-        let events = store.events(matching: predicate)
+        let predicate = store.predicateForEvents(withStart: startOfDay, end: endOfDay, calendars: calendars)
+        let allEvents = store.events(matching: predicate)
             .filter { !$0.isAllDay }
             .sorted { $0.startDate < $1.startDate }
 
+        let upcoming = allEvents.filter { $0.startDate > now || ($0.startDate <= now && $0.endDate > now) }
+        let pastTasks = allEvents.filter { $0.endDate <= now && $0.eventType == .task }
+
         DispatchQueue.main.async {
-            self.todaysEvents = events
-            self.nextEvent = events.first(where: { $0.startDate > now || ($0.startDate <= now && $0.endDate > now) })
-            self.buildGroupedEvents(from: events)
+            self.todaysEvents = upcoming
+            self.pastTaskEvents = pastTasks
+            self.nextEvent = upcoming.first
+            self.buildGroupedEvents(from: upcoming)
         }
     }
 
     private func buildGroupedEvents(from events: [EKEvent]) {
         groupedEvents = [GroupedEvents(id: nil, groupName: "Today", events: events)]
+        sortedEvents = events.map { EventWithGroup(event: $0, groupName: nil) }
     }
 
     func fetchReminders() {
@@ -176,52 +239,62 @@ public class EventManager: ObservableObject {
                 .map { ReminderListSummary(id: $0.key, listName: $0.value.name, color: $0.value.color, externalIdentifier: $0.value.externalID, overdueCount: $0.value.overdue, undatedCount: $0.value.undated) }
                 .sorted { $0.listName.localizedCaseInsensitiveCompare($1.listName) == .orderedAscending }
 
+            let overdueItems = reminders
+                .filter { r in
+                    guard let due = r.dueDateComponents.flatMap({ Calendar.current.date(from: $0) }) else { return false }
+                    return due < now
+                }
+                .sorted { a, b in
+                    let da = Calendar.current.date(from: a.dueDateComponents!)!
+                    let db = Calendar.current.date(from: b.dueDateComponents!)!
+                    return da < db
+                }
+            let undatedItems = reminders
+                .filter { $0.dueDateComponents == nil }
+                .sorted { ($0.title ?? "") < ($1.title ?? "") }
+
             DispatchQueue.main.async {
                 self.overdueReminders = totalOverdue
                 self.undatedReminders = totalUndated
                 self.reminderListSummaries = summaries
+                self.reminderItems = overdueItems + undatedItems
             }
         }
     }
 
-    /// The next event that hasn't started yet (used for icon/styling in the status bar).
-    public var nextUpcomingEvent: EKEvent? {
+    public var statusBarUrgency: StatusBarUrgency {
+        guard let next = nextEvent else { return .none }
         let now = Date()
-        return todaysEvents.first(where: { $0.startDate > now })
+        if next.startDate <= now { return .none }  // already in progress — no alert needed
+        let mins = next.startDate.timeIntervalSince(now) / 60
+        if mins <= 2 { return .imminent }
+        if mins <= 5 { return .soon }
+        return .none
     }
 
-    /// Returns `(main, next)` where `main` is the primary (bold) label and
-    /// `next` is the secondary (regular) label shown after the arrow, or `nil`.
-    /// Icons are intentionally omitted from the strings — the caller renders them.
-    public func statusBarComponents() -> (main: String, next: String?) {
-        guard calendarAccessGranted else { return ("📅 No Access", nil) }
-        guard let next = nextEvent else { return ("📅 No more meetings", nil) }
-        let now = Date()
-        if next.startDate <= now && next.endDate > now {
-            let main = "🟢 \(next.title ?? "Meeting")"
-            if let following = todaysEvents.first(where: { $0.startDate > now }) {
-                let ft = following.title ?? "Meeting"
-                return (main, "\(ft)  \(nextEventLabel(for: following, now: now))")
-            }
-            return (main, nil)
-        }
-        // No current meeting — bold the title, dim the time
-        return (next.title ?? "Meeting", nextEventLabel(for: next, now: now))
-    }
-
-    private func nextEventLabel(for event: EKEvent, now: Date) -> String {
-        let mins = Int(event.startDate.timeIntervalSince(now) / 60)
-        if mins < 60 {
-            return "in \(mins)m"
-        }
-        let formatter = DateFormatter()
-        formatter.dateFormat = "h:mm"
-        return formatter.string(from: event.startDate)
+    private func truncatedTitle(_ title: String, maxLength: Int = 20) -> String {
+        guard title.count > maxLength else { return title }
+        let half = (maxLength - 1) / 2
+        let start = title.prefix(half)
+        let end = title.suffix(maxLength - 1 - half)
+        return "\(start)…\(end)"
     }
 
     public func statusBarTitle() -> String {
-        let (main, next) = statusBarComponents()
-        guard let next else { return main }
-        return "\(main)  →  \(next)"
+        guard calendarAccessGranted else { return "📅 No Access" }
+        guard let next = nextEvent else { return "📅 No more events" }
+        let title = truncatedTitle(next.title ?? "Event")
+        let now = Date()
+        let icon = next.eventType.emoji
+        if next.startDate <= now && next.endDate > now {
+            return "🟢 \(title)"
+        }
+        let mins = Int(next.startDate.timeIntervalSince(now) / 60)
+        if mins < 60 {
+            return "\(icon) \(title) in \(mins)m"
+        }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "h:mm a"
+        return "\(icon) \(title) at \(formatter.string(from: next.startDate))"
     }
 }

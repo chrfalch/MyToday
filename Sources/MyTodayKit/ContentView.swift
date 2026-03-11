@@ -35,40 +35,70 @@ public struct PopoverContentView: View {
 
             Divider()
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    // Reminders summary
-                    if eventManager.reminderAccessGranted {
-                        RemindersSectionView(
-                            overdue: eventManager.overdueReminders,
-                            undated: eventManager.undatedReminders,
-                            listSummaries: eventManager.reminderListSummaries
-                        )
-                        Divider().padding(.leading, 16)
-                    }
-
-                    // Meetings
-                    if !eventManager.calendarAccessGranted {
-                        Text("Calendar access required.\nPlease grant access in System Settings → Privacy → Calendars.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
-                            .padding()
-                    } else if eventManager.todaysEvents.isEmpty {
-                        HStack {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(.green)
-                            Text("No more meetings today")
-                                .foregroundColor(.secondary)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        // Reminders summary
+                        if eventManager.reminderAccessGranted {
+                            RemindersSectionView(
+                                overdue: eventManager.overdueReminders,
+                                undated: eventManager.undatedReminders,
+                                reminderItems: eventManager.reminderItems
+                            )
+                            Divider().padding(.leading, 16)
                         }
-                        .padding()
-                    } else {
-                        ForEach(eventManager.groupedEvents) { group in
-                            ForEach(group.events, id: \.eventIdentifier) { event in
-                                EventRowView(event: event)
-                                Divider().padding(.leading, 16)
+
+                        // Meetings
+                        if !eventManager.calendarAccessGranted {
+                            Text("Calendar access required.\nPlease grant access in System Settings → Privacy → Calendars.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                                .padding()
+                        } else {
+                            // Past task events (grayed, above current/upcoming)
+                            if !eventManager.pastTaskEvents.isEmpty {
+                                Text("EARLIER")
+                                    .font(.caption2)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.secondary)
+                                    .padding(.horizontal, 16)
+                                    .padding(.top, 10)
+                                    .padding(.bottom, 4)
+                                ForEach(eventManager.pastTaskEvents, id: \.eventIdentifier) { event in
+                                    EventRowView(event: event)
+                                    Divider().padding(.leading, 16)
+                                }
+                            }
+
+                            // Anchor for scroll-to-current
+                            Color.clear.frame(height: 0).id("currentEventsAnchor")
+
+                            if eventManager.todaysEvents.isEmpty {
+                                VStack(spacing: 8) {
+                                    Text("🎉")
+                                        .font(.system(size: 48))
+                                    Text("All clear!")
+                                        .font(.headline)
+                                        .foregroundColor(.primary)
+                                    Text("Nothing scheduled for today")
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 32)
+                            } else {
+                                ForEach(eventManager.sortedEvents, id: \.event.eventIdentifier) { item in
+                                    EventRowView(event: item.event, groupName: item.groupName)
+                                    Divider().padding(.leading, 16)
+                                }
                             }
                         }
+                    }
+                }
+                .onReceive(eventManager.scrollToCurrentEvent) { _ in
+                    withAnimation(.easeInOut(duration: 0.25)) {
+                        proxy.scrollTo("currentEventsAnchor", anchor: .top)
                     }
                 }
             }
@@ -104,7 +134,7 @@ public struct PopoverContentView: View {
 struct RemindersSectionView: View {
     let overdue: Int
     let undated: Int
-    let listSummaries: [ReminderListSummary]
+    let reminderItems: [EKReminder]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -124,14 +154,14 @@ struct RemindersSectionView: View {
                     HStack(spacing: 8) {
                         if overdue > 0 {
                             HStack(spacing: 3) {
-                                Circle().fill(Color.red).frame(width: 8, height: 8)
-                                Text("\(overdue)").font(.caption).foregroundColor(.red)
+                                Circle().fill(Color(NSColor.systemRed)).frame(width: 8, height: 8)
+                                Text("\(overdue)").font(.caption).foregroundColor(Color(NSColor.systemRed))
                             }
                         }
                         if undated > 0 {
                             HStack(spacing: 3) {
-                                Circle().fill(Color.orange).frame(width: 8, height: 8)
-                                Text("\(undated)").font(.caption).foregroundColor(.orange)
+                                Circle().fill(Color(NSColor.systemYellow)).frame(width: 8, height: 8)
+                                Text("\(undated)").font(.caption).foregroundColor(Color(NSColor.systemYellow))
                             }
                         }
                     }
@@ -144,54 +174,76 @@ struct RemindersSectionView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
 
-            // Per-list breakdown
-            ForEach(listSummaries) { summary in
-                ReminderListRow(summary: summary)
+            ForEach(reminderItems, id: \.calendarItemIdentifier) { reminder in
+                ReminderItemRow(reminder: reminder)
             }
 
-            if !listSummaries.isEmpty {
+            if !reminderItems.isEmpty {
                 Spacer().frame(height: 6)
             }
         }
     }
 }
 
-struct ReminderListRow: View {
-    let summary: ReminderListSummary
+struct ReminderItemRow: View {
+    let reminder: EKReminder
     @State private var isHovered = false
 
-    var body: some View {
-        HStack(spacing: 8) {
-            Circle()
-                .fill(Color(cgColor: summary.color))
-                .frame(width: 8, height: 8)
+    private var dueDate: Date? {
+        reminder.dueDateComponents.flatMap { Calendar.current.date(from: $0) }
+    }
 
-            Text(summary.listName)
-                .font(.caption)
-                .foregroundColor(.primary)
-                .lineLimit(1)
+    private var isOverdue: Bool {
+        dueDate.map { $0 < Date() } ?? false
+    }
+
+    private var dotColor: Color {
+        isOverdue ? Color(NSColor.systemRed) : Color(NSColor.systemYellow)
+    }
+
+    private var calendarColor: Color {
+        guard let cgColor = reminder.calendar.cgColor else { return .secondary }
+        return Color(cgColor: cgColor)
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Circle()
+                .fill(dotColor)
+                .frame(width: 8, height: 8)
+                .padding(.top, 4)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(reminder.title ?? "Untitled")
+                    .font(.caption)
+                    .foregroundColor(.primary)
+                    .lineLimit(2)
+
+                if let due = dueDate {
+                    HStack(spacing: 4) {
+                        Text(due, style: .relative)
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        Text("· \(reminder.calendar.title)")
+                            .font(.caption2)
+                            .foregroundColor(calendarColor)
+                    }
+                } else {
+                    HStack(spacing: 4) {
+                        Text("No due date")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        Text("· \(reminder.calendar.title)")
+                            .font(.caption2)
+                            .foregroundColor(calendarColor)
+                    }
+                }
+            }
 
             Spacer()
-
-            if summary.overdueCount > 0 {
-                HStack(spacing: 3) {
-                    Circle().fill(Color.red).frame(width: 6, height: 6)
-                    Text("\(summary.overdueCount)")
-                        .font(.caption)
-                        .foregroundColor(.red)
-                }
-            }
-            if summary.undatedCount > 0 {
-                HStack(spacing: 3) {
-                    Circle().fill(Color.orange).frame(width: 6, height: 6)
-                    Text("\(summary.undatedCount)")
-                        .font(.caption)
-                        .foregroundColor(.orange)
-                }
-            }
         }
         .padding(.horizontal, 16)
-        .padding(.leading, 32)
+        .padding(.leading, 8)
         .padding(.vertical, 4)
         .background(isHovered ? Color.primary.opacity(0.05) : Color.clear)
         .onHover { isHovered = $0 }
@@ -200,8 +252,8 @@ struct ReminderListRow: View {
     }
 
     private func openInReminders() {
-        if let extID = summary.externalIdentifier,
-           let url = URL(string: "x-apple-reminderkit://REMCDList/\(extID)") {
+        let calID = reminder.calendar.calendarIdentifier
+        if let url = URL(string: "x-apple-reminderkit://REMCDList/\(calID)") {
             NSWorkspace.shared.open(url)
         } else {
             NSWorkspace.shared.open(URL(string: "x-apple-reminderkit://")!)
@@ -211,8 +263,10 @@ struct ReminderListRow: View {
 
 struct EventRowView: View {
     let event: EKEvent
-    @State private var now = Date()
-    let timer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
+    var groupName: String? = nil
+    @EnvironmentObject var eventManager: EventManager
+
+    private var now: Date { eventManager.currentDate }
 
     private var isNow: Bool {
         event.startDate <= now && event.endDate > now
@@ -243,6 +297,9 @@ struct EventRowView: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 HStack {
+                    Image(systemName: event.eventType.sfSymbol)
+                        .font(.caption2)
+                        .foregroundColor(eventTypeColor)
                     Text(event.title ?? "Untitled")
                         .font(.subheadline)
                         .fontWeight(isNow ? .semibold : .regular)
@@ -270,9 +327,16 @@ struct EventRowView: View {
                     }
                 }
 
-                Text(timeString)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                HStack(spacing: 4) {
+                    Text(timeString)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    if let name = groupName {
+                        Text("· \(name)")
+                            .font(.caption)
+                            .foregroundColor(.secondary.opacity(0.6))
+                    }
+                }
 
                 if let location = event.location, !location.isEmpty {
                     Label(location, systemImage: "mappin.circle")
@@ -294,10 +358,8 @@ struct EventRowView: View {
         .onHover { isHovered = $0 }
         .contentShape(Rectangle())
         .onTapGesture { openInCalendar() }
-        .onReceive(timer) { _ in
-            now = Date()
-        }
     }
+
 
     private func openInCalendar() {
         let epoch = event.startDate.timeIntervalSinceReferenceDate
@@ -309,5 +371,13 @@ struct EventRowView: View {
     private var calendarColor: Color {
         guard let cgColor = event.calendar?.cgColor else { return .accentColor }
         return Color(cgColor: cgColor)
+    }
+
+    private var eventTypeColor: Color {
+        switch event.eventType {
+        case .meeting: return .blue
+        case .place:   return .orange
+        case .task:    return .secondary
+        }
     }
 }
