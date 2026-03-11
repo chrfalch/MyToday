@@ -4,11 +4,9 @@ import EventKit
 
 public struct PopoverContentView: View {
     @ObservedObject var eventManager: EventManager
-    var onOpenSettings: () -> Void = {}
 
-    public init(eventManager: EventManager, onOpenSettings: @escaping () -> Void = {}) {
+    public init(eventManager: EventManager) {
         self.eventManager = eventManager
-        self.onOpenSettings = onOpenSettings
     }
 
     public var body: some View {
@@ -22,12 +20,6 @@ public struct PopoverContentView: View {
                 Text(Date(), style: .date)
                     .font(.caption)
                     .foregroundColor(.secondary)
-                Button(action: { eventManager.refresh() }) {
-                    Image(systemName: "arrow.clockwise")
-                }
-                .buttonStyle(.plain)
-                .font(.caption)
-                .foregroundColor(.secondary)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
@@ -103,29 +95,6 @@ public struct PopoverContentView: View {
                 }
             }
 
-            Divider()
-
-            // Footer
-            HStack {
-                Button(action: onOpenSettings) {
-                    Image(systemName: "gearshape")
-                }
-                .buttonStyle(.plain)
-                .font(.caption)
-                .foregroundColor(.secondary)
-
-                Spacer()
-
-                Button("Quit") {
-                    NSApp.terminate(nil)
-                }
-                .buttonStyle(.plain)
-                .font(.caption)
-                .foregroundColor(.secondary)
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-            .background(Color(NSColor.windowBackgroundColor))
         }
         .frame(width: 340)
     }
