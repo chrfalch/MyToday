@@ -1,0 +1,55 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number (e.g. 1.1.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Bump version in Xcode project
+        run: |
+          NEW_VERSION="${{ inputs.version }}"
+          BUILD_NUMBER="${{ github.run_number }}"
+          PBXPROJ="MyToday.xcodeproj/project.pbxproj"
+
+          # Update MARKETING_VERSION (CFBundleShortVersionString) in both Debug and Release configs
+          sed -i '' "s/MARKETING_VERSION = [^;]*;/MARKETING_VERSION = ${NEW_VERSION};/g" "$PBXPROJ"
+
+          # Update CURRENT_PROJECT_VERSION (CFBundleVersion) in both Debug and Release configs
+          sed -i '' "s/CURRENT_PROJECT_VERSION = [^;]*;/CURRENT_PROJECT_VERSION = ${BUILD_NUMBER};/g" "$PBXPROJ"
+
+          echo "Bumped to version ${NEW_VERSION} (build ${BUILD_NUMBER})"
+
+      - name: Commit and tag version bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -am "chore: bump version to ${{ inputs.version }} (build ${{ github.run_number }})"
+          git tag "v${{ inputs.version }}"
+          git push origin HEAD:main --tags
+
+      - name: Build and package
+        run: bash scripts/package.sh
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ inputs.version }}
+          name: MyToday ${{ inputs.version }}
+          generate_release_notes: true
+          files: build/MyToday-${{ inputs.version }}.pkg
