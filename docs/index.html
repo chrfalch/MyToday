@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MyToday — Your day, at a glance</title>
+  <meta name="description" content="A lightweight macOS menu bar app that shows your next meeting and today's schedule without opening Calendar." />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f5f5f7;
+      --surface: #ffffff;
+      --surface2: #f0f0f2;
+      --text: #1d1d1f;
+      --text-secondary: #6e6e73;
+      --accent: #0071e3;
+      --accent-hover: #0077ed;
+      --green: #34c759;
+      --orange: #ff9500;
+      --red: #ff3b30;
+      --border: rgba(0,0,0,0.08);
+      --shadow: 0 4px 24px rgba(0,0,0,0.08);
+      --shadow-lg: 0 12px 48px rgba(0,0,0,0.12);
+      --radius: 18px;
+      --radius-sm: 10px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #000000;
+        --surface: #1c1c1e;
+        --surface2: #2c2c2e;
+        --text: #f5f5f7;
+        --text-secondary: #98989d;
+        --border: rgba(255,255,255,0.08);
+        --shadow: 0 4px 24px rgba(0,0,0,0.4);
+        --shadow-lg: 0 12px 48px rgba(0,0,0,0.5);
+      }
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Nav ── */
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      backdrop-filter: saturate(180%) blur(20px);
+      -webkit-backdrop-filter: saturate(180%) blur(20px);
+      background: rgba(255,255,255,0.72);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+      height: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      nav { background: rgba(0,0,0,0.72); }
+    }
+
+    .nav-logo {
+      font-size: 17px;
+      font-weight: 600;
+      letter-spacing: -0.3px;
+      color: var(--text);
+      text-decoration: none;
+    }
+
+    .nav-links { display: flex; gap: 28px; list-style: none; }
+    .nav-links a {
+      font-size: 14px;
+      color: var(--text-secondary);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .nav-links a:hover { color: var(--text); }
+
+    /* ── Hero ── */
+    .hero {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 120px 24px 80px;
+    }
+
+    .hero-eyebrow {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 16px;
+    }
+
+    .hero h1 {
+      font-size: clamp(48px, 8vw, 88px);
+      font-weight: 700;
+      letter-spacing: -2px;
+      line-height: 1.05;
+      background: linear-gradient(135deg, var(--text) 0%, var(--text-secondary) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 20px;
+    }
+
+    .hero-sub {
+      font-size: clamp(18px, 2.5vw, 22px);
+      color: var(--text-secondary);
+      max-width: 560px;
+      margin: 0 auto 40px;
+    }
+
+    .hero-actions { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 14px 28px;
+      border-radius: 980px;
+      font-size: 16px;
+      font-weight: 500;
+      text-decoration: none;
+      transition: all 0.2s;
+      cursor: pointer;
+      border: none;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+    }
+    .btn-primary:hover { background: var(--accent-hover); transform: translateY(-1px); box-shadow: 0 6px 20px rgba(0,113,227,0.35); }
+
+    .btn-secondary {
+      background: var(--surface2);
+      color: var(--text);
+    }
+    .btn-secondary:hover { background: var(--border); transform: translateY(-1px); }
+
+    /* ── Menu Bar Mockup ── */
+    .mockup-wrap {
+      margin: 64px auto 0;
+      max-width: 720px;
+      width: 100%;
+    }
+
+    .menubar-mockup {
+      background: var(--surface);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-lg);
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+
+    .menubar-bar {
+      background: var(--surface2);
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .menubar-left { display: flex; align-items: center; gap: 16px; font-size: 13px; font-weight: 600; color: var(--text); }
+    .menubar-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 13px;
+      color: var(--text);
+    }
+
+    .menubar-item { opacity: 0.6; }
+    .menubar-app {
+      background: var(--accent);
+      color: #fff;
+      padding: 2px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .popover {
+      padding: 16px;
+    }
+
+    .popover-header {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+      margin-bottom: 12px;
+    }
+
+    .event-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 12px;
+      border-radius: var(--radius-sm);
+      margin-bottom: 6px;
+      transition: background 0.15s;
+    }
+    .event-row:hover { background: var(--surface2); }
+
+    .event-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .event-info { flex: 1; min-width: 0; }
+    .event-name { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .event-time { font-size: 12px; color: var(--text-secondary); margin-top: 1px; }
+
+    .event-badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 20px;
+    }
+    .badge-now { background: rgba(52,199,89,0.15); color: var(--green); }
+    .badge-soon { background: rgba(255,149,0,0.15); color: var(--orange); }
+    .badge-later { background: var(--surface2); color: var(--text-secondary); }
+
+    .reminders-row {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: var(--radius-sm);
+      background: var(--surface2);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+    .reminder-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+    /* ── Features ── */
+    section { padding: 80px 24px; max-width: 1100px; margin: 0 auto; }
+
+    .section-label {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent);
+      text-align: center;
+      margin-bottom: 12px;
+    }
+
+    .section-title {
+      font-size: clamp(28px, 4vw, 44px);
+      font-weight: 700;
+      letter-spacing: -1px;
+      text-align: center;
+      margin-bottom: 16px;
+    }
+
+    .section-sub {
+      font-size: 17px;
+      color: var(--text-secondary);
+      text-align: center;
+      max-width: 520px;
+      margin: 0 auto 56px;
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+    }
+
+    .feature-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 32px 28px;
+      box-shadow: var(--shadow);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .feature-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
+
+    .feature-icon {
+      font-size: 36px;
+      margin-bottom: 16px;
+      display: block;
+    }
+
+    .feature-title {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      letter-spacing: -0.3px;
+    }
+
+    .feature-desc {
+      font-size: 14px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+
+    /* ── How it works ── */
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 40px;
+      counter-reset: step;
+    }
+
+    .step {
+      text-align: center;
+    }
+
+    .step-number {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #fff;
+      font-size: 20px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 16px;
+    }
+
+    .step-title { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+    .step-desc { font-size: 14px; color: var(--text-secondary); }
+
+    /* ── CTA ── */
+    .cta-section {
+      text-align: center;
+      padding: 80px 24px 100px;
+      max-width: 700px;
+      margin: 0 auto;
+    }
+
+    .cta-section h2 {
+      font-size: clamp(28px, 4vw, 44px);
+      font-weight: 700;
+      letter-spacing: -1px;
+      margin-bottom: 16px;
+    }
+
+    .cta-section p {
+      font-size: 17px;
+      color: var(--text-secondary);
+      margin-bottom: 36px;
+    }
+
+    .requirements {
+      display: inline-flex;
+      gap: 20px;
+      flex-wrap: wrap;
+      justify-content: center;
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-top: 20px;
+    }
+
+    .req-item { display: flex; align-items: center; gap: 6px; }
+    .req-icon { font-size: 16px; }
+
+    /* ── Footer ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 32px 24px;
+      text-align: center;
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    footer a { color: var(--text-secondary); text-decoration: none; }
+    footer a:hover { color: var(--text); }
+
+    /* ── Utils ── */
+    .divider {
+      height: 1px;
+      background: var(--border);
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    @media (max-width: 600px) {
+      .nav-links { display: none; }
+      .hero h1 { letter-spacing: -1px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Nav -->
+  <nav>
+    <a class="nav-logo" href="#">MyToday</a>
+    <ul class="nav-links">
+      <li><a href="#features">Features</a></li>
+      <li><a href="#how-it-works">Setup</a></li>
+      <li><a href="https://github.com/chrfalch/MyToday" target="_blank" rel="noopener">GitHub</a></li>
+    </ul>
+  </nav>
+
+  <!-- Hero -->
+  <section class="hero">
+    <p class="hero-eyebrow">macOS Menu Bar App</p>
+    <h1>Your day,<br>at a glance.</h1>
+    <p class="hero-sub">
+      MyToday lives quietly in your menu bar and shows your next meeting, today's schedule, and reminders — no Calendar app needed.
+    </p>
+    <div class="hero-actions">
+      <a href="https://github.com/chrfalch/MyToday" class="btn btn-primary" target="_blank" rel="noopener">
+        View on GitHub
+      </a>
+      <a href="#how-it-works" class="btn btn-secondary">
+        How to set up
+      </a>
+    </div>
+
+    <!-- Mockup -->
+    <div class="mockup-wrap">
+      <div class="menubar-mockup">
+        <div class="menubar-bar">
+          <div class="menubar-left">
+            <span>Finder</span>
+            <span>File</span>
+            <span>Edit</span>
+            <span>View</span>
+          </div>
+          <div class="menubar-right">
+            <span class="menubar-item">Wed 14:23</span>
+            <span class="menubar-app">👥 Team Standup in 7m</span>
+          </div>
+        </div>
+        <div class="popover">
+          <div class="popover-header">Today's Schedule</div>
+
+          <div class="event-row">
+            <div class="event-dot" style="background:#30d158;"></div>
+            <div class="event-info">
+              <div class="event-name">Weekly Design Review</div>
+              <div class="event-time">14:00 – 14:45 · In Progress</div>
+            </div>
+            <span class="event-badge badge-now">NOW</span>
+          </div>
+
+          <div class="event-row">
+            <div class="event-dot" style="background:#ff9f0a;"></div>
+            <div class="event-info">
+              <div class="event-name">👥 Team Standup</div>
+              <div class="event-time">14:30 – 14:45 · zoom.us/j/123456</div>
+            </div>
+            <span class="event-badge badge-soon">7m</span>
+          </div>
+
+          <div class="event-row">
+            <div class="event-dot" style="background:#0a84ff;"></div>
+            <div class="event-info">
+              <div class="event-name">📍 Coffee with Sarah</div>
+              <div class="event-time">15:30 – 16:00 · Blue Bottle Coffee</div>
+            </div>
+            <span class="event-badge badge-later">1h 30m</span>
+          </div>
+
+          <div class="event-row">
+            <div class="event-dot" style="background:#bf5af2;"></div>
+            <div class="event-info">
+              <div class="event-name">📋 Sprint Planning</div>
+              <div class="event-time">16:00 – 17:00</div>
+            </div>
+            <span class="event-badge badge-later">2h</span>
+          </div>
+
+          <div class="reminders-row">
+            <div class="reminder-dot" style="background:var(--red);"></div>
+            <span>3 overdue reminders</span>
+            <div class="reminder-dot" style="background:var(--orange); margin-left:8px;"></div>
+            <span>5 undated reminders</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- Features -->
+  <section id="features">
+    <p class="section-label">Features</p>
+    <h2 class="section-title">Everything you need, nothing you don't.</h2>
+    <p class="section-sub">Built on Apple's native EventKit — fast, private, and always up to date.</p>
+
+    <div class="features-grid">
+      <div class="feature-card">
+        <span class="feature-icon">⚡️</span>
+        <div class="feature-title">Always-on overview</div>
+        <p class="feature-desc">Your next meeting title and countdown live in the menu bar, updating every 15 seconds so you're never caught off guard.</p>
+      </div>
+
+      <div class="feature-card">
+        <span class="feature-icon">🗓️</span>
+        <div class="feature-title">Full day at a click</div>
+        <p class="feature-desc">One click opens a popover with all remaining events — times, locations, and clickable meeting links for Zoom, Meet, and more.</p>
+      </div>
+
+      <div class="feature-card">
+        <span class="feature-icon">🔴</span>
+        <div class="feature-title">Smart color coding</div>
+        <p class="feature-desc">Events inherit your calendar's color. Current events glow green, meetings in ≤15 min turn orange, and the bar title flashes red when a meeting starts in ≤2 min.</p>
+      </div>
+
+      <div class="feature-card">
+        <span class="feature-icon">✅</span>
+        <div class="feature-title">Reminders at a glance</div>
+        <p class="feature-desc">See overdue and undated reminder counts without opening the Reminders app. Red dot for overdue, yellow for undated.</p>
+      </div>
+
+      <div class="feature-card">
+        <span class="feature-icon">🔒</span>
+        <div class="feature-title">Fully local & private</div>
+        <p class="feature-desc">No network calls. No accounts. No telemetry. MyToday reads only from your local Calendar and Reminders databases via Apple's native APIs.</p>
+      </div>
+
+      <div class="feature-card">
+        <span class="feature-icon">🎛️</span>
+        <div class="feature-title">Flexible settings</div>
+        <p class="feature-desc">Group and filter calendars, hide individual reminder lists, and tweak refresh intervals — your way, saved across launches.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- How it works -->
+  <section id="how-it-works">
+    <p class="section-label">Setup</p>
+    <h2 class="section-title">Running in minutes.</h2>
+    <p class="section-sub">Open source and built with Xcode — no package manager or extra dependencies required.</p>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-number">1</div>
+        <div class="step-title">Clone the repo</div>
+        <p class="step-desc">Download or clone from GitHub to your Mac.</p>
+      </div>
+      <div class="step">
+        <div class="step-number">2</div>
+        <div class="step-title">Create an Xcode project</div>
+        <p class="step-desc">New → macOS App, set the name to MyToday, SwiftUI interface.</p>
+      </div>
+      <div class="step">
+        <div class="step-number">3</div>
+        <div class="step-title">Add the source files</div>
+        <p class="step-desc">Drop in <code>MyTodayApp.swift</code>, <code>EventManager.swift</code>, and <code>ContentView.swift</code>.</p>
+      </div>
+      <div class="step">
+        <div class="step-number">4</div>
+        <div class="step-title">Build &amp; run</div>
+        <p class="step-desc">Hit ⌘R. Grant Calendar and Reminders permissions and you're done.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- CTA -->
+  <div class="cta-section">
+    <h2>Get MyToday — it's free.</h2>
+    <p>Open source, MIT licensed. Build it yourself or fork it and make it your own.</p>
+    <a href="https://github.com/chrfalch/MyToday" class="btn btn-primary" target="_blank" rel="noopener">
+      View source on GitHub →
+    </a>
+    <div class="requirements">
+      <span class="req-item"><span class="req-icon"></span> macOS 13+</span>
+      <span class="req-item"><span class="req-icon">🛠</span> Xcode 15+</span>
+      <span class="req-item"><span class="req-icon">📄</span> MIT License</span>
+      <span class="req-item"><span class="req-icon">0️⃣</span> Zero dependencies</span>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer>
+    <p>
+      Made with ♥ for macOS ·
+      <a href="https://github.com/chrfalch/MyToday" target="_blank" rel="noopener">GitHub</a>
+    </p>
+  </footer>
+
+</body>
+</html>
