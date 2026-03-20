@@ -197,7 +197,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                     let icon = nextItem.event.eventType.emoji
                     var nextTitle = nextItem.event.title ?? "Event"
                     if nextTitle.count > 14 { nextTitle = String(nextTitle.prefix(14)) + "…" }
-                    let dimColor = NSColor.secondaryLabelColor
+                    let dimColor = NSColor(white: 0.85, alpha: 1.0)
                     // Build the next-event segment starting with the emoji so the shared
                     // applyLeadingEmojiOffsets helper can handle the offset correctly.
                     let nextCore = NSMutableAttributedString(
