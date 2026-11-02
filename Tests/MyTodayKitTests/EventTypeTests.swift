@@ -37,6 +37,20 @@ struct EventTypeTests {
     }
 }
 
+@Suite("Status bar pulse Tests")
+struct StatusBarPulseTests {
+
+    @Test("pulses between 2 and 1 minutes before start", arguments: [61.0, 90.0, 120.0])
+    func pulsesInWindow(seconds: TimeInterval) {
+        #expect(StatusBarUrgency.shouldPulse(secondsUntilStart: seconds))
+    }
+
+    @Test("does not pulse outside the 2–1 minute window", arguments: [-30.0, 0.0, 30.0, 60.0, 121.0, 300.0])
+    func noPulseOutsideWindow(seconds: TimeInterval) {
+        #expect(!StatusBarUrgency.shouldPulse(secondsUntilStart: seconds))
+    }
+}
+
 @Suite("EventWithGroup Tests")
 struct EventWithGroupTests {
 

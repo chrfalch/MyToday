@@ -21,6 +21,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     var settingsWindowController: SettingsWindowController?
     var timer: Timer?        // 60s — full data refresh
     var displayTimer: Timer? // 15s — status bar text + urgency color update only
+    var pulseTimer: Timer?   // ~30fps while the red title pulses
     var cancellables = Set<AnyCancellable>()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -169,16 +170,44 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     }
 
     func updateStatusBar() {
-        guard let button = statusItem?.button else { return }
         eventManager.currentDate = Date()   // keep popover rows in sync
+        renderStatusBar()
+    }
+
+    private func updatePulseTimer(pulsing: Bool) {
+        if pulsing, pulseTimer == nil {
+            pulseTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30, repeats: true) { [weak self] _ in
+                self?.renderStatusBar()
+            }
+        } else if !pulsing {
+            pulseTimer?.invalidate()
+            pulseTimer = nil
+        }
+    }
+
+    /// Opacity that eases between 0.35 and 1.0 over a 1.2s cycle.
+    private func pulseAlpha(at date: Date) -> CGFloat {
+        let period = 1.2
+        let phase = date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: period) / period
+        return 0.35 + 0.65 * (0.5 + 0.5 * cos(2 * .pi * phase))
+    }
+
+    private func renderStatusBar() {
+        guard let button = statusItem?.button else { return }
 
         let title = eventManager.statusBarTitle()
         let baseFont = NSFont.menuBarFont(ofSize: 0)
 
+        let pulsing = eventManager.statusBarShouldPulse
+        updatePulseTimer(pulsing: pulsing)
+
         let urgencyColor: NSColor? = {
             switch eventManager.statusBarUrgency {
             case .soon:     return NSColor.systemOrange
-            case .imminent: return NSColor.systemRed
+            case .imminent:
+                return pulsing
+                    ? NSColor.systemRed.withAlphaComponent(pulseAlpha(at: Date()))
+                    : NSColor.systemRed
             case .none:     return nil
             }
         }()
