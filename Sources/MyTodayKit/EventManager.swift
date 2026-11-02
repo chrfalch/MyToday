@@ -6,6 +6,11 @@ public enum StatusBarUrgency {
     case none      // > 5 mins away
     case soon      // ≤ 5 mins, > 2 mins → orange
     case imminent  // ≤ 2 mins or already in progress → red
+
+    /// The red title pulses in the last stretch before a meeting: 2 → 1 minutes out.
+    public static func shouldPulse(secondsUntilStart seconds: TimeInterval) -> Bool {
+        seconds > 60 && seconds <= 120
+    }
 }
 
 public enum EventType {
@@ -270,6 +275,11 @@ public class EventManager: ObservableObject {
         if mins <= 2 { return .imminent }
         if mins <= 5 { return .soon }
         return .none
+    }
+
+    public var statusBarShouldPulse: Bool {
+        guard let next = nextEvent else { return false }
+        return StatusBarUrgency.shouldPulse(secondsUntilStart: next.startDate.timeIntervalSinceNow)
     }
 
     private func truncatedTitle(_ title: String, maxLength: Int = 20) -> String {
